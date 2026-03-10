@@ -1,36 +1,89 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# gtm-signal-scoring
 
-## Getting Started
+> **This is an example implementation for one company's GTM motion.** The scoring model, signal sources, and P0 definitions are calibrated for a specific ICP and data pipeline. You should personalize the Atlas scoring weights, P0 title patterns, and integration hooks for your own context before using in production.
 
-First, run the development server:
+A standalone, open-source GTM signal scoring app that turns your PostgreSQL database into a ranked account intelligence layer. Built on real signals — no synthetic data.
+
+## What It Does
+
+- Scores every account in your `dl_resolved` database using the **Atlas algorithm**
+- Surfaces real signals: tech stack adoptions, contact seniority, P0 penetration
+- Shows 30-day score trends with observed vs derived data clearly labeled
+- Integrates with Deepline CLI (required) for enrichment
+- Optional plugins for HubSpot and Notion
+
+## Prerequisites
+
+- **Node.js 20+**
+- **PostgreSQL** with `dl_resolved` and `dl_graph` schemas (populated by Deepline)
+- **Deepline CLI** installed and authenticated
+
+## Quick Start
 
 ```bash
+git clone https://github.com/your-org/gtm-signal-scoring
+cd gtm-signal-scoring
+npm install
+cp .env.example .env.local
+# Edit .env.local with your DATABASE_URL and DEEPLINE_CLI_PATH
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```env
+# Required
+DATABASE_URL=postgresql://user:pass@host:5432/db
+DEEPLINE_CLI_PATH=/usr/local/bin/deepline
 
-## Learn More
+# Optional - HubSpot
+ENABLE_HUBSPOT=false
+HUBSPOT_ACCESS_TOKEN=
+HUBSPOT_PORTAL_ID=
 
-To learn more about Next.js, take a look at the following resources:
+# Optional - Notion
+ENABLE_NOTION=false
+NOTION_API_KEY=
+NOTION_DATABASE_ID=
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Scoring Model
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+See [docs/SCORING_MODEL.md](docs/SCORING_MODEL.md) for the full Atlas algorithm.
 
-## Deploy on Vercel
+**TL;DR:**
+- Base: 20 points
+- Tech adoption: up to +15 per tool (with time decay)
+- Contact seniority: C-Level +25, VP +20, Director +15, Manager +10
+- P0 engagement: +10 per qualified contact
+- Company size: +5 to +20
+- Max: 100 points
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Database Schema
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Expects the `dl_resolved` schema from Deepline:
+- `dl_resolved.resolved_companies` — enriched company records
+- `dl_resolved.resolved_people` — contacts linked via `super_company_id`
+
+See [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) for full details.
+
+## Integrations
+
+| Integration | Type | Docs |
+|---|---|---|
+| Deepline CLI | Required | [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) |
+| HubSpot | Optional plugin | [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) |
+| Notion | Optional plugin | [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) |
+
+## Customization
+
+The scoring model is intentionally opinionated. See [docs/CUSTOMIZATION.md](docs/CUSTOMIZATION.md) to adapt:
+- Atlas scoring weights (`lib/scoring/config.ts`)
+- P0 title/department patterns (`lib/scoring/config.ts`)
+- Data extraction paths for your enrichment provider
+
+## License
+
+MIT — see [LICENSE](LICENSE).
