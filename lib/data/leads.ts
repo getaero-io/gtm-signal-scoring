@@ -1,6 +1,7 @@
 import { query } from '@/lib/db';
 import { writeQuery } from '@/lib/db-write';
 import { InboundLead, InboundFormPayload, EnrichmentResult, RoutingTraceStep } from '@/types/inbound';
+import { enrichDomainFromExa } from '@/lib/ai/exa';
 
 export function extractDomain(email: string): string | null {
   const match = email.match(/@([^@]+)$/);
@@ -58,7 +59,10 @@ export async function enrichDomainFromNeon(domain: string): Promise<EnrichmentRe
   const mxFound = row.mx ?? false;
   const contacts = (row.contacts || []).filter((c: any) => c.full_name?.trim());
 
-  if (validBusiness === 0 && validFree === 0 && contacts.length === 0) return null;
+  if (validBusiness === 0 && validFree === 0 && contacts.length === 0) {
+    // Neon has no data for this domain — try Exa web research
+    return enrichDomainFromExa(domain);
+  }
 
   const emailQuality = Math.min(40, validBusiness * 40 + validFree * 20);
   const namedContacts = contacts.filter((c: any) => c.full_name && c.full_name.trim() && !c.full_name.includes('@'));

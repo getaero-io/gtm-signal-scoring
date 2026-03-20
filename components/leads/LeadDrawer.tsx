@@ -1,7 +1,7 @@
 'use client';
 
-import { InboundLead, EmailLog, RoutingTraceStep } from '@/types/inbound';
-import { X, CheckCircle2, XCircle, Mail } from 'lucide-react';
+import { InboundLead, EmailLog, AICategory } from '@/types/inbound';
+import { X, CheckCircle2, XCircle, Mail, Sparkles } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface Props {
@@ -34,6 +34,16 @@ export default function LeadDrawer({ lead, onClose }: Props) {
   if (!lead) return null;
 
   const rep = lead.assigned_rep;
+  const aiCategory = lead.enrichment_data?.ai_category;
+  const aiReason = lead.enrichment_data?.ai_reason;
+  const aiConfidence = lead.enrichment_data?.ai_confidence;
+
+  const categoryStyles: Record<AICategory, string> = {
+    QUALIFIED: 'bg-emerald-100 text-emerald-800',
+    UNQUALIFIED: 'bg-gray-100 text-gray-600',
+    SUPPORT: 'bg-yellow-100 text-yellow-800',
+    FOLLOW_UP: 'bg-blue-100 text-blue-800',
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex">
@@ -73,6 +83,26 @@ export default function LeadDrawer({ lead, onClose }: Props) {
               </div>
             </div>
           </section>
+
+          {aiCategory && (
+            <section>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1">
+                <Sparkles size={11} className="text-purple-400" aria-hidden />
+                AI Qualification
+              </h3>
+              <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${categoryStyles[aiCategory]}`}>
+                    {aiCategory}
+                  </span>
+                  {aiConfidence !== undefined && (
+                    <span className="text-xs text-gray-400">{Math.round(aiConfidence * 100)}% confidence</span>
+                  )}
+                </div>
+                {aiReason && <p className="text-xs text-gray-600 leading-relaxed">{aiReason}</p>}
+              </div>
+            </section>
+          )}
 
           {lead.routing_path && lead.routing_path.length > 0 && (
             <section>

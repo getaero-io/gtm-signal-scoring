@@ -64,6 +64,8 @@ export interface RoutingTraceStep {
   success: boolean;
 }
 
+export type AICategory = 'QUALIFIED' | 'UNQUALIFIED' | 'SUPPORT' | 'FOLLOW_UP';
+
 export interface EnrichmentResult {
   atlas_score: number;
   email_quality: number;
@@ -79,6 +81,10 @@ export interface EnrichmentResult {
     title?: string;
     is_p0: boolean;
   }>;
+  // AI qualification (optional — only present when AI is configured)
+  ai_category?: AICategory;
+  ai_reason?: string;
+  ai_confidence?: number;
 }
 
 export interface InboundLead {
