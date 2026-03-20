@@ -1,16 +1,16 @@
 export interface ScoreBreakdown {
   total: number;
-  tech_adoption: number;
-  seniority: number;
-  engagement: number;
-  enrichment: number;
+  email_quality: number;      // valid email + deliverability (max 40)
+  contact_identity: number;   // named contact with title (max 15)
+  founder_match: number;      // P0 founder/decision-maker match (max 20)
+  data_coverage: number;      // MX record confirmed (max 5)
 }
 
-export interface TrendPoint {
-  date: string;
-  score: number;
-  is_observed: boolean; // true = real data, false = derived
-}
+export type SignalType =
+  | 'email_validated'
+  | 'founder_identified'
+  | 'contact_named'
+  | 'domain_active';
 
 export interface Signal {
   id: string;
@@ -22,17 +22,16 @@ export interface Signal {
   description: string;
 }
 
-export type SignalType =
-  | 'tech_adoption'
-  | 'job_change'
-  | 'company_growth'
-  | 'engagement';
+export interface TrendPoint {
+  date: string;
+  score: number;
+  is_observed: boolean;
+}
 
 export interface ScoringWeights {
-  techAdoption: number;
-  techDecayPerMonth: number;
-  seniorityMultipliers: Record<string, number>;
-  p0ContactValue: number;
-  employeeCountTiers: Array<{ min: number; max: number; points: number }>;
-  techPerPoint: number;
+  validBusinessEmailPoints: number;
+  validFreeEmailPoints: number;
+  namedContactPoints: number;
+  founderMatchPoints: number;
+  mxFoundPoints: number;
 }
