@@ -66,46 +66,30 @@ export default function TeamPage() {
       {/* Add rep form */}
       <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6">
         <h2 className="text-sm font-semibold text-gray-700 mb-4">Add Rep</h2>
-        <form onSubmit={handleAdd} className="grid grid-cols-2 gap-3">
-          <input
-            type="text"
-            placeholder="Name"
-            value={form.name}
-            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-            required
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <input
-            type="email"
-            placeholder="Email"
-            value={form.email}
-            onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-            required
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <select
-            value={form.role}
-            onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-          </select>
-          <input
-            type="number"
-            placeholder="Max leads/day"
-            value={form.max_leads_per_day}
-            onChange={e => setForm(f => ({ ...f, max_leads_per_day: parseInt(e.target.value) || 20 }))}
-            min={1}
-            max={100}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <button
-            type="submit"
-            disabled={adding}
-            className="col-span-2 bg-gray-900 text-white py-2 rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50"
-          >
-            {adding ? 'Adding...' : 'Add Rep'}
-          </button>
+        <form onSubmit={handleAdd}>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
+              <label htmlFor="rep-name" className="text-xs font-medium text-gray-600">Name</label>
+              <input id="rep-name" type="text" placeholder="Alex Rivera" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="rep-email" className="text-xs font-medium text-gray-600">Email</label>
+              <input id="rep-email" type="email" placeholder="alex@company.com" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="rep-role" className="text-xs font-medium text-gray-600">Role</label>
+              <select id="rep-role" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="rep-capacity" className="text-xs font-medium text-gray-600">Max leads/day</label>
+              <input id="rep-capacity" type="number" placeholder="20" value={form.max_leads_per_day} onChange={e => setForm(f => ({ ...f, max_leads_per_day: parseInt(e.target.value) || 20 }))} min={1} max={100} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <button type="submit" disabled={adding} className="col-span-2 bg-gray-900 text-white py-2 rounded-lg text-sm font-medium hover:bg-gray-700 disabled:opacity-50">
+              {adding ? 'Adding...' : 'Add Rep'}
+            </button>
+          </div>
         </form>
       </div>
 

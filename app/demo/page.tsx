@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { CheckCircle2 } from 'lucide-react';
 
 export default function DemoPage() {
@@ -17,6 +18,11 @@ export default function DemoPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, source: 'form' }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setResult({ success: false, error: (data as { error?: string }).error ?? `Server error (${res.status})` });
+        return;
+      }
       const data = await res.json();
       setResult(data);
     } catch {
@@ -42,7 +48,7 @@ export default function DemoPage() {
             </div>
           )}
           <div className="mt-6">
-            <a href="/leads" className="text-sm text-blue-600 hover:underline">View in Leads Inbox →</a>
+            <Link href="/leads" className="text-sm text-blue-600 hover:underline">View in Leads Inbox →</Link>
           </div>
         </div>
       </div>
