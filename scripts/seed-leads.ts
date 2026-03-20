@@ -1,7 +1,11 @@
 // scripts/seed-leads.ts
-// Run with: npx tsx --env-file=.env.local scripts/seed-leads.ts
+// Run with: npx tsx scripts/seed-leads.ts
+
+import { loadEnvConfig } from '@next/env';
+loadEnvConfig(process.cwd());
 
 import { createLead, enrichDomainFromNeon } from '../lib/data/leads';
+import { writeQuery } from '../lib/db-write';
 
 // Spring cash domains with won/lost status
 const SPRING_CASH_DOMAINS = [
@@ -29,13 +33,11 @@ const SPRING_CASH_DOMAINS = [
 
 // Generate plausible contact names for a CPG brand domain
 function generateContact(domain: string): { full_name: string; email: string; company: string } {
-  const brand = domain
-    .replace(/\.(com|us|shop|organic)$/, '')
-    .replace(/[^a-z]/g, ' ')
-    .trim()
-    .split(' ')
-    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ');
+  const stripped = domain.replace(/\.[a-z]{2,}$/, '');
+  const words = stripped.replace(/[^a-z0-9]/gi, ' ').trim().split(/\s+/).filter(Boolean);
+  const brand = words.length > 0 && stripped.length > 2
+    ? words.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+    : domain;
 
   const firstNames = ['Alex', 'Jordan', 'Casey', 'Sam', 'Taylor', 'Morgan', 'Riley', 'Jamie', 'Drew', 'Quinn'];
   const lastNames = ['Chen', 'Rivera', 'Kim', 'Park', 'Nguyen', 'Lee', 'Smith', 'Johnson', 'Williams', 'Brown'];
@@ -78,7 +80,13 @@ async function seed() {
         enrichment
       );
 
-      console.log(`  ✓ Created lead ${lead.id} — Atlas: ${lead.atlas_score ?? 'N/A'} (${domain}) [${status}]`);
+      const dbStatus = status === 'won' ? 'converted' : 'assigned';
+      await writeQuery(
+        `UPDATE inbound.leads SET status = $2 WHERE id = $1`,
+        [lead.id, dbStatus]
+      );
+
+      console.log(`  ✓ Created lead ${lead.id} — Atlas: ${lead.atlas_score ?? 'N/A'} (${domain}) [${status} → ${dbStatus}]`);
       seeded++;
 
       // Small delay to avoid overwhelming the DB
@@ -91,7 +99,7 @@ async function seed() {
   }
 
   console.log(`\nDone: ${seeded} seeded, ${failed} failed`);
-  process.exit(0);
+  process.exit(failed > 0 ? 1 : 0);
 }
 
 seed().catch(err => {
