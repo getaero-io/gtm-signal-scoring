@@ -4,8 +4,10 @@ import { getLeads } from '@/lib/data/leads';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200);
-    const offset = parseInt(searchParams.get('offset') || '0');
+    const rawLimit = parseInt(searchParams.get('limit') ?? '', 10);
+    const rawOffset = parseInt(searchParams.get('offset') ?? '', 10);
+    const limit = Math.min(isNaN(rawLimit) || rawLimit < 1 ? 50 : rawLimit, 200);
+    const offset = isNaN(rawOffset) || rawOffset < 0 ? 0 : rawOffset;
     const { leads, total } = await getLeads(limit, offset);
     return NextResponse.json({ leads, total, limit, offset });
   } catch (err) {

@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { InboundLead } from '@/types/inbound';
 import { User, Mail, Building2, Clock, CheckCircle2, Zap } from 'lucide-react';
 
@@ -10,7 +11,7 @@ const STATUS_STYLES: Record<string, string> = {
   converted: 'bg-purple-100 text-purple-700',
 };
 
-const STATUS_ICONS: Record<string, React.ReactNode> = {
+const STATUS_ICONS: Record<string, ReactNode> = {
   new: <Clock size={11} />,
   assigned: <User size={11} />,
   replied: <Mail size={11} />,
@@ -58,6 +59,10 @@ export default function LeadsTable({ leads, onSelectLead, selectedId }: Props) {
             <tr
               key={lead.id}
               onClick={() => onSelectLead(lead)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onSelectLead(lead); }}
+              tabIndex={0}
+              role="button"
+              aria-pressed={selectedId === lead.id}
               className={`cursor-pointer transition-colors hover:bg-gray-50 ${
                 selectedId === lead.id ? 'bg-blue-50' : ''
               }`}

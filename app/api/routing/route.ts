@@ -14,8 +14,8 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const { nodes, edges, name } = await request.json();
-    if (!nodes || !edges) {
-      return NextResponse.json({ error: 'nodes and edges are required' }, { status: 400 });
+    if (!Array.isArray(nodes) || !Array.isArray(edges)) {
+      return NextResponse.json({ error: 'nodes and edges must be arrays' }, { status: 400 });
     }
     const config = await saveRoutingConfig(nodes, edges, name);
     return NextResponse.json({ config, saved: true });

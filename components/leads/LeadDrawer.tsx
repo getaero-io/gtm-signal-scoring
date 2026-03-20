@@ -11,12 +11,24 @@ interface Props {
 
 export default function LeadDrawer({ lead, onClose }: Props) {
   const [emails, setEmails] = useState<EmailLog[]>([]);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!lead) { setEmails([]); return; }
-    fetch(`/api/leads/${lead.id}`)
-      .then(r => r.json())
-      .then(data => setEmails(data.emails || []));
+    if (!lead) { setEmails([]); setEmailError(null); return; }
+    const controller = new AbortController();
+    fetch(`/api/leads/${lead.id}`, { signal: controller.signal })
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then(data => setEmails(data.emails ?? []))
+      .catch(err => {
+        if (err.name !== 'AbortError') {
+          console.error('Failed to fetch email logs:', err);
+          setEmailError('Failed to load emails');
+        }
+      });
+    return () => controller.abort();
   }, [lead?.id]);
 
   if (!lead) return null;
@@ -32,8 +44,8 @@ export default function LeadDrawer({ lead, onClose }: Props) {
             <h2 className="font-semibold text-gray-900">{lead.full_name}</h2>
             <p className="text-sm text-gray-500">{lead.email}</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <X size={20} />
+          <button onClick={onClose} aria-label="Close lead drawer" className="text-gray-400 hover:text-gray-600">
+            <X size={20} aria-hidden />
           </button>
         </div>
 
@@ -66,7 +78,7 @@ export default function LeadDrawer({ lead, onClose }: Props) {
             <section>
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Routing Path</h3>
               <div className="space-y-1">
-                {(lead.routing_path as RoutingTraceStep[]).map((step, i) => (
+                {lead.routing_path.map((step, i) => (
                   <div key={i} className="flex items-start gap-2 text-xs p-2 rounded-lg bg-gray-50">
                     {step.success
                       ? <CheckCircle2 size={13} className="text-emerald-500 mt-0.5 shrink-0" />
@@ -97,9 +109,12 @@ export default function LeadDrawer({ lead, onClose }: Props) {
             </section>
           )}
 
-          {emails.length > 0 && (
+          {(emails.length > 0 || emailError) && (
             <section>
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Auto-Replies Sent</h3>
+              {emailError && emails.length === 0 && (
+                <p className="text-xs text-red-500">{emailError}</p>
+              )}
               {emails.map(email => (
                 <div key={email.id} className="border border-gray-100 rounded-lg p-3 text-xs mb-2">
                   <div className="flex items-center gap-1.5 mb-1">

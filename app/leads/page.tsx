@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { InboundLead } from '@/types/inbound';
 import LeadsTable from '@/components/leads/LeadsTable';
 import LeadDrawer from '@/components/leads/LeadDrawer';
@@ -12,19 +12,22 @@ export default function LeadsPage() {
   const [selectedLead, setSelectedLead] = useState<InboundLead | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchLeads = async () => {
+  const fetchLeads = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch('/api/leads');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setLeads(data.leads || []);
-      setTotal(data.total || 0);
+      setLeads(data.leads ?? []);
+      setTotal(data.total ?? 0);
+    } catch (err) {
+      console.error('Failed to fetch leads:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { fetchLeads(); }, []);
+  useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
   return (
     <div>
