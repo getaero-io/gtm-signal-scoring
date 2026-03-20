@@ -1,20 +1,11 @@
-import { AccountsTable } from '@/components/accounts/AccountsTable';
-
-async function getAccounts() {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-  const res = await fetch(`${baseUrl}/api/accounts`, {
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to fetch accounts');
-  }
-
-  return res.json();
-}
+import AccountsTable from '@/components/accounts/AccountsTable';
+import { getAccounts } from '@/lib/data/companies';
 
 export default async function HomePage() {
-  const data = await getAccounts();
+  const { accounts, total } = await getAccounts({});
+
+  const withEmail = accounts.filter(a => a.score_breakdown.email_quality > 0).length;
+  const withFounder = accounts.filter(a => a.score_breakdown.founder_match > 0).length;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -24,7 +15,7 @@ export default async function HomePage() {
             {process.env.NEXT_PUBLIC_APP_NAME || 'GTM Signal Scoring'}
           </h1>
           <p className="mt-1 text-sm text-gray-500">
-            Account intelligence powered by real signals — Atlas scoring model
+            Founder contact intelligence &mdash; ranked by email quality &amp; decision-maker match
           </p>
         </div>
       </header>
@@ -33,10 +24,26 @@ export default async function HomePage() {
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-700">Accounts</h2>
           <span className="text-sm text-gray-500">
-            {data.pagination.total.toLocaleString()} total
+            {total.toLocaleString()} total
           </span>
         </div>
-        <AccountsTable accounts={data.data} pagination={data.pagination} />
+
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
+            <div className="text-2xl font-bold text-gray-900">{total}</div>
+            <div className="text-xs text-gray-500 mt-0.5">Total Accounts</div>
+          </div>
+          <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
+            <div className="text-2xl font-bold text-emerald-600">{withEmail}</div>
+            <div className="text-xs text-gray-500 mt-0.5">Valid Email Found</div>
+          </div>
+          <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
+            <div className="text-2xl font-bold text-purple-600">{withFounder}</div>
+            <div className="text-xs text-gray-500 mt-0.5">Founder Identified</div>
+          </div>
+        </div>
+
+        <AccountsTable accounts={accounts} />
       </main>
     </div>
   );

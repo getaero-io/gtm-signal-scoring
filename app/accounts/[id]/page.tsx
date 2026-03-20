@@ -1,26 +1,96 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import Link from 'next/link';
+import { getAccountById, getAccountSignals } from '@/lib/data/companies';
 import { ScoreDisplay } from '@/components/scoring/ScoreDisplay';
-import { ScoreBreakdown } from '@/components/scoring/ScoreBreakdown';
+import ScoreBreakdownDisplay from '@/components/scoring/ScoreBreakdown';
 import { TrendChart } from '@/components/scoring/TrendChart';
-import { Account } from '@/types/accounts';
 import { Signal } from '@/types/scoring';
+import { Contact } from '@/types/accounts';
+import { Mail, User, Building2, Globe, Zap } from 'lucide-react';
 
-interface AccountDetailData {
-  account: Account;
-  signals: Signal[];
+const SIGNAL_CONFIG: Record<string, { icon: string; color: string; bg: string }> = {
+  email_validated: { icon: '\u2709', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+  founder_identified: { icon: '\uD83D\uDC64', color: 'text-purple-600', bg: 'bg-purple-50' },
+  contact_named: { icon: '\uD83C\uDFF7', color: 'text-blue-600', bg: 'bg-blue-50' },
+  domain_active: { icon: '\uD83C\uDF10', color: 'text-gray-600', bg: 'bg-gray-50' },
+};
+
+function ContactCard({ contact }: { contact: Contact }) {
+  const initials = contact.full_name
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
+  return (
+    <div className="flex items-start gap-3 p-3 rounded-lg bg-gray-50">
+      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-semibold text-gray-600 shrink-0">
+        {initials}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-medium text-gray-900 text-sm">{contact.full_name}</span>
+          {contact.is_p0 && (
+            <span className="px-1.5 py-0.5 text-xs rounded bg-purple-100 text-purple-700 font-medium">
+              P0
+            </span>
+          )}
+          <span className="px-1.5 py-0.5 text-xs rounded bg-gray-100 text-gray-600">
+            {contact.seniority}
+          </span>
+        </div>
+        {contact.title && (
+          <p className="text-xs text-gray-500 mt-0.5">{contact.title}</p>
+        )}
+        {contact.email && (
+          <a
+            href={`mailto:${contact.email}`}
+            className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
+          >
+            <Mail className="w-3 h-3" />
+            {contact.email}
+          </a>
+        )}
+        {contact.linkedin_url && (
+          <a
+            href={contact.linkedin_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-gray-400 hover:text-gray-600 mt-0.5 inline-block"
+          >
+            LinkedIn
+          </a>
+        )}
+      </div>
+    </div>
+  );
 }
 
-async function getAccount(id: string): Promise<AccountDetailData> {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-  const res = await fetch(`${baseUrl}/api/accounts/${id}`, {
-    cache: 'no-store',
-  });
-
-  if (res.status === 404) notFound();
-  if (!res.ok) throw new Error('Failed to fetch account');
-
-  return res.json();
+function SignalItem({ signal }: { signal: Signal }) {
+  const config = SIGNAL_CONFIG[signal.type] ?? {
+    icon: '\u26A1',
+    color: 'text-gray-600',
+    bg: 'bg-gray-50',
+  };
+  return (
+    <div className={`flex items-start gap-3 p-3 rounded-lg ${config.bg}`}>
+      <span className="text-lg shrink-0">{config.icon}</span>
+      <div className="flex-1 min-w-0">
+        <p className={`text-sm font-medium ${config.color}`}>{signal.description}</p>
+        <p className="text-xs text-gray-400 mt-0.5">
+          {new Date(signal.date).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+          })}
+        </p>
+      </div>
+      <span className="text-xs font-semibold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full shrink-0">
+        +{signal.impact}
+      </span>
+    </div>
+  );
 }
 
 export default async function AccountDetailPage({
@@ -29,186 +99,154 @@ export default async function AccountDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { account, signals } = await getAccount(id);
+  const account = await getAccountById(id);
+
+  if (!account) notFound();
+
+  const signals = await getAccountSignals(account);
+  const hasEmail = account.score_breakdown.email_quality > 0;
+  const hasFounder = account.score_breakdown.founder_match > 0;
+  const mxActive = account.score_breakdown.data_coverage > 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <nav className="text-sm text-gray-500 mb-2">
-            <Link href="/" className="hover:text-gray-700">
-              Accounts
-            </Link>
-            {' / '}
-            <span className="text-gray-900">{account.name}</span>
-          </nav>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">{account.name}</h1>
-              {account.domain && (
-                <p className="text-sm text-gray-500 mt-0.5">{account.domain}</p>
-              )}
-            </div>
-            <ScoreDisplay score={account.atlas_score} size="lg" />
+    <main className="min-h-screen bg-gray-50">
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        {/* Breadcrumb */}
+        <nav className="mb-6 text-sm text-gray-500">
+          <Link href="/" className="hover:text-gray-800 transition-colors">
+            Accounts
+          </Link>
+          <span className="mx-2">/</span>
+          <span className="text-gray-900 font-medium">{account.name}</span>
+        </nav>
+
+        {/* Header */}
+        <div className="flex items-start justify-between mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">{account.name}</h1>
+            <a
+              href={`https://${account.domain}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-gray-400 hover:text-blue-600 flex items-center gap-1 mt-1 transition-colors"
+            >
+              <Globe className="w-3.5 h-3.5" />
+              {account.domain}
+            </a>
           </div>
+          <ScoreDisplay score={account.atlas_score} size="lg" />
         </div>
-      </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Main grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
           {/* Left column */}
           <div className="space-y-6">
             {/* Score Breakdown */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-base font-semibold text-gray-900 mb-4">
-                Atlas Score Breakdown
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <h2 className="text-sm font-semibold text-gray-700 mb-4 uppercase tracking-wide">
+                Score Breakdown
               </h2>
-              <ScoreBreakdown breakdown={account.score_breakdown} />
-              <p className="mt-4 text-xs text-gray-400">
-                Scores are calculated from real signals. See{' '}
-                <a
-                  href="https://github.com/your-org/gtm-signal-scoring/blob/main/docs/SCORING_MODEL.md"
-                  className="underline"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  SCORING_MODEL.md
-                </a>{' '}
-                for methodology.
-              </p>
+              <ScoreBreakdownDisplay breakdown={account.score_breakdown} />
             </div>
 
-            {/* Company Info */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-base font-semibold text-gray-900 mb-4">Company Info</h2>
-              <dl className="space-y-2 text-sm">
-                {account.industry && (
-                  <div className="flex justify-between">
-                    <dt className="text-gray-500">Industry</dt>
-                    <dd className="text-gray-900 font-medium">{account.industry}</dd>
-                  </div>
-                )}
-                {account.domain && (
-                  <div className="flex justify-between">
-                    <dt className="text-gray-500">Domain</dt>
-                    <dd className="text-gray-900 font-medium">{account.domain}</dd>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <dt className="text-gray-500">P0 Contacts</dt>
-                  <dd className="text-gray-900 font-medium">
-                    {account.p0_penetration.current} / {account.p0_penetration.total}
-                  </dd>
+            {/* Signal Summary */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <h2 className="text-sm font-semibold text-gray-700 mb-4 uppercase tracking-wide">
+                Signal Summary
+              </h2>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500 flex items-center gap-2">
+                    <Mail className="w-4 h-4" /> Email
+                  </span>
+                  {hasEmail ? (
+                    <span className="font-medium text-emerald-600">
+                      {account.score_breakdown.email_quality >= 40 ? 'Business' : 'Free'}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400">Not found</span>
+                  )}
                 </div>
-                <div className="flex justify-between">
-                  <dt className="text-gray-500">Tech Stack</dt>
-                  <dd className="text-gray-900 font-medium">
-                    {account.tech_stack.length} tools
-                  </dd>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500 flex items-center gap-2">
+                    <User className="w-4 h-4" /> Founder
+                  </span>
+                  {hasFounder ? (
+                    <span className="font-medium text-purple-600">Identified</span>
+                  ) : (
+                    <span className="text-gray-400">Unknown</span>
+                  )}
                 </div>
-              </dl>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500 flex items-center gap-2">
+                    <Globe className="w-4 h-4" /> MX Record
+                  </span>
+                  {mxActive ? (
+                    <span className="font-medium text-blue-600">Active</span>
+                  ) : (
+                    <span className="text-gray-400">Unconfirmed</span>
+                  )}
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500 flex items-center gap-2">
+                    <Building2 className="w-4 h-4" /> P0 Contacts
+                  </span>
+                  <span className="font-medium text-gray-900">
+                    {account.p0_penetration.current}/{account.p0_penetration.total}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Right column */}
+          {/* Right 2 columns */}
           <div className="lg:col-span-2 space-y-6">
-            {/* 30-Day Trend */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-base font-semibold text-gray-900 mb-4">
+            {/* Trend */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <h2 className="text-sm font-semibold text-gray-700 mb-4 uppercase tracking-wide">
                 30-Day Score Trend
               </h2>
               <TrendChart data={account.trend_30d} />
             </div>
 
-            {/* Tech Stack */}
-            {account.tech_stack.length > 0 && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h2 className="text-base font-semibold text-gray-900 mb-4">
-                  Tech Stack
-                  <span className="ml-2 text-xs font-normal text-gray-400">
-                    (observed via Apollo)
-                  </span>
-                </h2>
-                <div className="flex flex-wrap gap-2">
-                  {account.tech_stack.map(tech => (
-                    <span
-                      key={tech.id}
-                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100"
-                    >
-                      {tech.name}
-                      {tech.category && (
-                        <span className="ml-1 text-blue-400">· {tech.category}</span>
-                      )}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Key Contacts (P0) */}
+            {/* Contacts */}
             {account.key_contacts.length > 0 && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h2 className="text-base font-semibold text-gray-900 mb-4">
-                  P0 Contacts
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+                <h2 className="text-sm font-semibold text-gray-700 mb-4 uppercase tracking-wide">
+                  Contacts ({account.key_contacts.length})
                 </h2>
-                <div className="divide-y divide-gray-100">
-                  {account.key_contacts.map(contact => (
-                    <div key={contact.id} className="py-3 flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{contact.full_name}</p>
-                        {contact.title && (
-                          <p className="text-xs text-gray-500">{contact.title}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-100">
-                          {contact.seniority}
-                        </span>
-                        {contact.linkedin_url && (
-                          <a
-                            href={contact.linkedin_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-blue-500 hover:underline"
-                          >
-                            LinkedIn
-                          </a>
-                        )}
-                      </div>
-                    </div>
+                <div className="space-y-2">
+                  {account.key_contacts.map(c => (
+                    <ContactCard key={c.id} contact={c} />
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Signals */}
+            {/* Intent Signals */}
             {signals.length > 0 && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h2 className="text-base font-semibold text-gray-900 mb-4">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+                <h2 className="text-sm font-semibold text-gray-700 mb-4 uppercase tracking-wide flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-yellow-500" />
                   Intent Signals
                 </h2>
-                <div className="divide-y divide-gray-100">
-                  {signals.map(signal => (
-                    <div key={signal.id} className="py-3 flex items-start justify-between">
-                      <div>
-                        <p className="text-sm text-gray-900">{signal.description}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          {new Date(signal.date).toLocaleDateString()} ·{' '}
-                          <span className="capitalize">{signal.type.replace('_', ' ')}</span>
-                        </p>
-                      </div>
-                      <span className="text-xs text-green-600 font-medium ml-4 shrink-0">
-                        +{signal.impact} pts
-                      </span>
-                    </div>
+                <div className="space-y-2">
+                  {signals.map(s => (
+                    <SignalItem key={s.id} signal={s} />
                   ))}
                 </div>
+              </div>
+            )}
+
+            {account.key_contacts.length === 0 && signals.length === 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 text-center text-gray-400">
+                <p className="text-sm">No contacts or signals found for this domain.</p>
+                <p className="text-xs mt-1">Enrich this account to generate signals.</p>
               </div>
             )}
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }
