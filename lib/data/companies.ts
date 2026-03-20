@@ -1,8 +1,63 @@
 import { query } from '@/lib/db';
-import { DBCompany, DBPerson } from '@/types/database';
-import { Account, Contact, TechStackItem } from '@/types/accounts';
+import { Account, Contact } from '@/types/accounts';
 import { calculateAtlasScore, generate30DayTrend, detectSignals } from '@/lib/scoring/engine';
 import { determineSeniority, isP0Contact } from '@/lib/scoring/p0-detection';
+
+interface DomainAggregate {
+  domain: string;
+  brand_name: string | null;
+  record_count: string;
+  valid_business_email_count: string;
+  valid_free_email_count: string;
+  mx_found: boolean;
+  updated_at: string;
+  created_at: string;
+}
+
+interface PersonRecord {
+  id: string;
+  provider: string;
+  identity_payload: Record<string, any>;
+  raw_payload: Record<string, any>;
+  created_at: string;
+}
+
+const DOMAIN_AGG_CTE = `
+  WITH domain_records AS (
+    SELECT
+      jsonb_array_elements_text(identity_payload->'domain') AS domain,
+      id,
+      provider,
+      identity_payload,
+      raw_payload,
+      created_at
+    FROM dl_resolved.resolved_people
+    WHERE is_match = true AND identity_payload ? 'domain'
+  ),
+  domain_agg AS (
+    SELECT
+      domain,
+      MAX(raw_payload->'__deepline_identity'->'context_cols_from_enrich'->>'brand_name') AS brand_name,
+      COUNT(*) AS record_count,
+      COUNT(*) FILTER (
+        WHERE provider = 'zerobounce'
+          AND raw_payload->'result'->>'status' = 'valid'
+          AND (raw_payload->'result'->>'free_email') = 'false'
+      ) AS valid_business_email_count,
+      COUNT(*) FILTER (
+        WHERE provider = 'zerobounce'
+          AND raw_payload->'result'->>'status' = 'valid'
+          AND (raw_payload->'result'->>'free_email') = 'true'
+      ) AS valid_free_email_count,
+      BOOL_OR(
+        provider = 'zerobounce' AND (raw_payload->'result'->>'mx_found') = 'true'
+      ) AS mx_found,
+      MAX(created_at) AS updated_at,
+      MIN(created_at) AS created_at
+    FROM domain_records
+    GROUP BY domain
+  )
+`;
 
 export async function getAccounts(params: {
   search?: string;
@@ -10,94 +65,85 @@ export async function getAccounts(params: {
   offset?: number;
 }): Promise<{ accounts: Account[]; total: number }> {
   const { search = '', limit = 50, offset = 0 } = params;
+  const searchParam = `%${search}%`;
 
-  let sql = `
-    SELECT id, display_name, identity_payload, raw_payload, created_at, updated_at
-    FROM dl_resolved.resolved_companies
-    WHERE is_match = true
-  `;
-
-  const queryParams: any[] = [];
-
-  if (search) {
-    sql += ` AND LOWER(display_name) LIKE LOWER($${queryParams.length + 1})`;
-    queryParams.push(`%${search}%`);
-  }
-
-  sql += ` ORDER BY created_at DESC LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
-  queryParams.push(limit, offset);
-
-  const companies = await query<DBCompany>(sql, queryParams);
-
-  const accounts = await Promise.all(
-    companies.map(company => transformCompanyToAccount(company))
+  const domains = await query<DomainAggregate>(
+    `${DOMAIN_AGG_CTE}
+    SELECT * FROM domain_agg
+    WHERE LOWER(domain) LIKE LOWER($1) OR LOWER(COALESCE(brand_name, '')) LIKE LOWER($1)
+    ORDER BY valid_business_email_count DESC, valid_free_email_count DESC, updated_at DESC
+    LIMIT $2 OFFSET $3`,
+    [searchParam, limit, offset]
   );
 
-  let countSql = `SELECT COUNT(*) as total FROM dl_resolved.resolved_companies WHERE is_match = true`;
-  const countParams: any[] = [];
-  if (search) {
-    countSql += ` AND LOWER(display_name) LIKE LOWER($1)`;
-    countParams.push(`%${search}%`);
-  }
-  const countResult = await query<{ total: string }>(countSql, countParams);
+  const countResult = await query<{ total: string }>(
+    `${DOMAIN_AGG_CTE}
+    SELECT COUNT(*) AS total FROM domain_agg
+    WHERE LOWER(domain) LIKE LOWER($1) OR LOWER(COALESCE(brand_name, '')) LIKE LOWER($1)`,
+    [searchParam]
+  );
   const total = parseInt(countResult[0]?.total || '0');
 
+  const accounts = domains.map(d => transformDomainToAccount(d, []));
   return { accounts, total };
 }
 
 export async function getAccountById(id: string): Promise<Account | null> {
-  const companies = await query<DBCompany>(
-    `SELECT * FROM dl_resolved.resolved_companies WHERE id = $1`,
-    [id]
+  const domain = decodeURIComponent(id);
+
+  const domains = await query<DomainAggregate>(
+    `${DOMAIN_AGG_CTE}
+    SELECT * FROM domain_agg WHERE domain = $1`,
+    [domain]
   );
 
-  if (companies.length === 0) return null;
+  if (domains.length === 0) return null;
 
-  return transformCompanyToAccount(companies[0]);
+  const contacts = await getContactsForDomain(domain);
+  return transformDomainToAccount(domains[0], contacts);
 }
 
 export async function getAccountSignals(account: Account) {
+  const validBusinessEmails = account.score_breakdown.email_quality >= 40 ? 1 : 0;
+  const validFreeEmails =
+    account.score_breakdown.email_quality >= 20 && account.score_breakdown.email_quality < 40 ? 1 : 0;
+
   return detectSignals({
-    techStack: account.tech_stack,
     contacts: account.key_contacts,
+    validBusinessEmails,
+    validFreeEmails,
+    mxFound: account.score_breakdown.data_coverage > 0,
+    accountId: account.id,
+    enrichedAt: account.updated_at,
   });
 }
 
-async function transformCompanyToAccount(company: DBCompany): Promise<Account> {
-  const rawPayload = company.raw_payload || {};
+function transformDomainToAccount(agg: DomainAggregate, contacts: Contact[]): Account {
+  const name = agg.brand_name || agg.domain;
+  const validBusinessEmails = parseInt(agg.valid_business_email_count || '0');
+  const validFreeEmails = parseInt(agg.valid_free_email_count || '0');
+  const mxFound = agg.mx_found ?? false;
 
-  // Apollo enrichment data
-  const org = rawPayload.result?.data?.organization || {};
+  const scoreBreakdown = calculateAtlasScore({
+    contacts,
+    validBusinessEmails,
+    validFreeEmails,
+    mxFound,
+  });
 
-  const identityPayload = company.identity_payload || {};
-  const domain =
-    identityPayload.domain?.[0] ||
-    org.primary_domain ||
-    (org.website_url as string | undefined)?.replace(/^https?:\/\//, '').replace(/\/$/, '');
-
-  const industry = org.industry || org.industries?.[0];
-  const employeeCount: number | undefined = org.estimated_num_employees;
-
-  // Tech stack from Apollo enrichment (observed data)
-  const techStack = getTechStackFromApollo(company.id, org);
-
-  // Contacts from resolved_people
-  const contacts = await getContactsForCompany(company.id);
-
-  // Atlas scoring
-  const scoreBreakdown = calculateAtlasScore({ techStack, contacts, employeeCount });
-
-  // 30-day trend (derived from tech adoption dates; Apollo data has no dates so marked derived)
-  const trend30d = generate30DayTrend({ techStack, currentScore: scoreBreakdown.total });
+  const trend30d = generate30DayTrend({
+    enrichedAt: agg.created_at,
+    currentScore: scoreBreakdown.total,
+  });
 
   const p0Count = contacts.filter(c => c.is_p0).length;
 
   return {
-    id: company.id,
-    name: company.display_name || org.name || 'Unknown Company',
-    domain,
-    industry,
-    logo_url: org.logo_url,
+    id: agg.domain,
+    name,
+    domain: agg.domain,
+    industry: undefined,
+    logo_url: undefined,
     atlas_score: scoreBreakdown.total,
     score_breakdown: scoreBreakdown,
     trend_30d: trend30d,
@@ -105,71 +151,86 @@ async function transformCompanyToAccount(company: DBCompany): Promise<Account> {
       current: p0Count,
       total: contacts.length,
     },
-    tech_stack: techStack,
-    key_contacts: contacts.filter(c => c.is_p0),
-    created_at: company.created_at,
-    updated_at: company.updated_at,
+    tech_stack: [],
+    key_contacts:
+      p0Count > 0
+        ? contacts.filter(c => c.is_p0)
+        : contacts.slice(0, 3),
+    created_at: agg.created_at,
+    updated_at: agg.updated_at,
   };
 }
 
-function getTechStackFromApollo(companyId: string, org: any): TechStackItem[] {
-  const technologies: any[] = org.current_technologies || [];
-  // Apollo data has no adoption date — use company updated_at as proxy, marked as observed
-  const adoptedAt = new Date().toISOString();
-
-  return technologies.map((tech: any, index: number) => ({
-    id: `apollo-${companyId}-${index}`,
-    account_id: companyId,
-    name: tech.name || tech,
-    category: tech.category,
-    source: 'Apollo (observed)',
-    adopted_at: adoptedAt,
-  }));
-}
-
-async function getContactsForCompany(companyId: string): Promise<Contact[]> {
-  // Use super_company_id to link people to companies
-  const people = await query<DBPerson>(
-    `SELECT * FROM dl_resolved.resolved_people WHERE super_company_id = $1 AND is_match = true`,
-    [companyId]
+async function getContactsForDomain(domain: string): Promise<Contact[]> {
+  const records = await query<PersonRecord>(
+    `SELECT id, provider, identity_payload, raw_payload, created_at
+     FROM dl_resolved.resolved_people
+     WHERE is_match = true
+       AND identity_payload->'domain' @> jsonb_build_array($1::text)`,
+    [domain]
   );
 
-  return people.map(person => {
-    const rawPayload = person.raw_payload || {};
-    const identityPayload = person.identity_payload || {};
+  const contacts: Contact[] = [];
+  const seenEmails = new Set<string>();
 
-    // Apollo person data
-    const personData = rawPayload.result?.data?.[0] || {};
+  for (const record of records) {
+    const contact = extractContactFromRecord(record, domain);
+    if (!contact) continue;
 
-    const firstName = personData.firstName || '';
-    const lastName = personData.lastName || '';
-    const fullName = personData.fullName || `${firstName} ${lastName}`.trim() || person.display_name || 'Unknown';
+    if (contact.email) {
+      if (seenEmails.has(contact.email)) continue;
+      seenEmails.add(contact.email);
+    }
 
-    const email =
-      identityPayload.email?.[0] ||
-      personData.email;
+    contacts.push(contact);
+  }
 
-    const linkedinUrl =
-      identityPayload.linkedin?.[0] ||
-      personData.linkedinUrl ||
-      personData.linkedinPublicUrl;
+  return contacts;
+}
 
-    const currentJob = personData.experiences?.[0];
-    const title = currentJob?.title || personData.headline || personData.jobTitle;
-    const department = currentJob?.companyName;
+function extractContactFromRecord(record: PersonRecord, domain: string): Contact | null {
+  const identityPayload = record.identity_payload || {};
+  const rawPayload = record.raw_payload || {};
+  const result = rawPayload.result || {};
+  const context = rawPayload.__deepline_identity?.context_cols_from_enrich || {};
 
-    const seniority = determineSeniority(title);
-    const is_p0 = isP0Contact(title, department);
+  const email = identityPayload.email?.[0];
 
-    return {
-      id: person.id,
-      account_id: companyId,
-      full_name: fullName,
-      email,
-      title,
-      seniority,
-      is_p0,
-      linkedin_url: linkedinUrl,
-    };
-  });
+  const firstName =
+    result.firstname ||
+    result.first_name ||
+    result.firstName ||
+    context.first_name ||
+    '';
+  const lastName =
+    result.lastname ||
+    result.last_name ||
+    result.lastName ||
+    context.last_name ||
+    '';
+  const fullName =
+    `${firstName} ${lastName}`.trim() ||
+    identityPayload.person_name?.[0] ||
+    (email ? email.split('@')[0] : '');
+
+  if (!email && !fullName) return null;
+
+  const title =
+    context.grok_founder_title ||
+    result.title ||
+    identityPayload.title?.[0];
+
+  const seniority = determineSeniority(title);
+  const is_p0 = isP0Contact(title, undefined);
+
+  return {
+    id: record.id,
+    account_id: domain,
+    full_name: fullName || 'Unknown',
+    email,
+    title,
+    seniority,
+    is_p0,
+    linkedin_url: identityPayload.linkedin?.[0],
+  };
 }
