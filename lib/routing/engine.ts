@@ -3,6 +3,21 @@ import { getRepByRole } from '@/lib/data/reps';
 import { updateLeadRouting } from '@/lib/data/leads';
 import { sendEmail } from '@/lib/email';
 
+const ALLOWED_CONDITION_FIELDS = new Set([
+  'atlas_score', 'email_quality', 'founder_match', 'contact_identity',
+  'is_founder_detected', 'valid_business_emails', 'valid_free_emails', 'source', 'domain',
+]);
+
+function isAllowedWebhookUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' &&
+      (parsed.hostname === 'hooks.slack.com' || parsed.hostname.endsWith('.slack.com'));
+  } catch {
+    return false;
+  }
+}
+
 export async function executeRouting(
   config: RoutingConfig,
   lead: InboundLead
@@ -13,8 +28,15 @@ export async function executeRouting(
   let currentStatus = 'new';
 
   let currentNodeId = nodes.find(n => n.type === 'triggerNode')?.id;
+  const visited = new Set<string>();
 
   while (currentNodeId) {
+    if (visited.has(currentNodeId)) {
+      console.error('Routing cycle detected at node', currentNodeId, 'for lead', lead.id);
+      break;
+    }
+    visited.add(currentNodeId);
+
     const node = nodes.find(n => n.id === currentNodeId);
     if (!node) break;
 
@@ -40,7 +62,14 @@ export async function executeRouting(
 
         case 'conditionNode': {
           const { field, operator, value } = node.data;
-          const leadValue = (lead as any)[field as string];
+          const fieldStr = field as string;
+          if (!ALLOWED_CONDITION_FIELDS.has(fieldStr)) {
+            result = `Blocked: "${fieldStr}" is not a permitted condition field`;
+            success = false;
+            nextNodeId = undefined;
+            break;
+          }
+          const leadValue = (lead as unknown as Record<string, unknown>)[fieldStr];
           let conditionMet = false;
 
           if (operator === 'gte') conditionMet = Number(leadValue) >= Number(value);
@@ -87,7 +116,7 @@ export async function executeRouting(
 
         case 'notifyNode': {
           const webhookUrl = node.data.slack_webhook_url;
-          if (webhookUrl) {
+          if (webhookUrl && isAllowedWebhookUrl(webhookUrl)) {
             try {
               await fetch(webhookUrl, {
                 method: 'POST',
@@ -101,6 +130,8 @@ export async function executeRouting(
               result = 'Slack notification failed';
               success = false;
             }
+          } else if (webhookUrl) {
+            result = 'Slack notification skipped: invalid or disallowed webhook URL';
           } else {
             result = 'No Slack webhook configured';
           }

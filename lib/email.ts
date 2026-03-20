@@ -37,14 +37,18 @@ export async function sendEmail(params: {
 
   if (!process.env.SMTP_HOST) {
     console.log(`[Email] Would send ${template} email to ${lead.email}: ${subject}`);
-    await logEmail({
-      lead_id: lead.id,
-      to_email: lead.email,
-      subject,
-      body,
-      template,
-      status: 'sent',
-    });
+    try {
+      await logEmail({
+        lead_id: lead.id,
+        to_email: lead.email,
+        subject,
+        body,
+        template,
+        status: 'sent',
+      });
+    } catch (logErr) {
+      console.error('Failed to log email:', logErr);
+    }
     return { success: true };
   }
 
@@ -67,10 +71,18 @@ export async function sendEmail(params: {
       text: body,
     });
 
-    await logEmail({ lead_id: lead.id, to_email: lead.email, subject, body, template, status: 'sent' });
+    try {
+      await logEmail({ lead_id: lead.id, to_email: lead.email, subject, body, template, status: 'sent' });
+    } catch (logErr) {
+      console.error('Failed to log email:', logErr);
+    }
     return { success: true };
   } catch (err: any) {
-    await logEmail({ lead_id: lead.id, to_email: lead.email, subject, body, template, status: 'failed' });
+    try {
+      await logEmail({ lead_id: lead.id, to_email: lead.email, subject, body, template, status: 'failed' });
+    } catch (logErr) {
+      console.error('Failed to log email:', logErr);
+    }
     return { success: false, error: err.message };
   }
 }

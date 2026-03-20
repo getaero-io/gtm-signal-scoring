@@ -1,26 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { createLead, enrichDomainFromNeon, extractDomain } from '@/lib/data/leads';
 import { getActiveRoutingConfig } from '@/lib/data/routing';
 import { executeRouting } from '@/lib/routing/engine';
 import { InboundFormPayload } from '@/types/inbound';
 
+const InboundSchema = z.object({
+  full_name: z.string().min(1).max(200),
+  email: z.string().email(),
+  company: z.string().max(200).optional(),
+  message: z.string().max(5000).optional(),
+  source: z.enum(['form', 'webhook', 'seed']).optional(),
+});
+
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json() as InboundFormPayload;
-
-    if (!body.full_name || !body.email) {
+    const parsed = InboundSchema.safeParse(await request.json());
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'full_name and email are required' },
+        { error: 'Invalid request', details: parsed.error.flatten() },
         { status: 400 }
       );
     }
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
-      return NextResponse.json(
-        { error: 'Invalid email address' },
-        { status: 400 }
-      );
-    }
+    const body = parsed.data;
 
     const domain = extractDomain(body.email);
     const enrichment = domain ? await enrichDomainFromNeon(domain) : null;
@@ -29,9 +31,11 @@ export async function POST(request: NextRequest) {
 
     const routingConfig = await getActiveRoutingConfig();
     if (routingConfig) {
-      executeRouting(routingConfig, lead).catch(err => {
+      try {
+        await executeRouting(routingConfig, lead);
+      } catch (err) {
         console.error('Routing execution failed for lead', lead.id, err);
-      });
+      }
     }
 
     return NextResponse.json({

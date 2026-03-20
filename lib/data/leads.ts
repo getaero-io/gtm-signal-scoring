@@ -111,7 +111,7 @@ export async function createLead(
       enrichment?.valid_business_emails ?? 0,
       enrichment?.valid_free_emails ?? 0,
       enrichment?.mx_found ?? false,
-      enrichment ? JSON.stringify(enrichment) : '{}',
+      enrichment ? JSON.stringify(enrichment) : null,
     ]
   );
 
