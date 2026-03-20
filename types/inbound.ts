@@ -32,21 +32,25 @@ export interface RoutingNodeData {
   slack_webhook_url?: string;
 }
 
+export interface RoutingNode {
+  id: string;
+  type: string;
+  position: { x: number; y: number };
+  data: RoutingNodeData;
+}
+
+export interface RoutingEdge {
+  id: string;
+  source: string;
+  target: string;
+  sourceHandle?: string;
+}
+
 export interface RoutingConfig {
   id: string;
   name: string;
-  nodes: Array<{
-    id: string;
-    type: string;
-    position: { x: number; y: number };
-    data: RoutingNodeData;
-  }>;
-  edges: Array<{
-    id: string;
-    source: string;
-    target: string;
-    sourceHandle?: string;
-  }>;
+  nodes: RoutingNode[];
+  edges: RoutingEdge[];
   is_active: boolean;
   created_at: string;
   updated_at: string;
