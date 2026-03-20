@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, GitBranch, Inbox, Users } from 'lucide-react';
+import { LayoutDashboard, GitBranch, Inbox, Users, Sliders } from 'lucide-react';
 
 const links = [
   { href: '/', label: 'Accounts', icon: LayoutDashboard },
   { href: '/routing', label: 'Routing', icon: GitBranch },
   { href: '/leads', label: 'Leads', icon: Inbox },
   { href: '/team', label: 'Team', icon: Users },
+  { href: '/scoring', label: 'Scoring', icon: Sliders },
 ];
 
 export default function Nav() {

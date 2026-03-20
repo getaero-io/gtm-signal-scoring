@@ -1,9 +1,14 @@
 import { ScoringWeights } from '@/types/scoring';
+import rawConfig from './scoring-config.json';
+
+const { scoring } = rawConfig;
 
 export const SCORING_WEIGHTS: ScoringWeights = {
-  validBusinessEmailPoints: 40,
-  validFreeEmailPoints: 20,
-  namedContactPoints: 15,
-  founderMatchPoints: 20,
-  mxFoundPoints: 5,
+  validBusinessEmailPoints: scoring.emailQuality.validBusinessEmailPoints,
+  validFreeEmailPoints: scoring.emailQuality.validFreeEmailPoints,
+  namedContactPoints: scoring.contactIdentity.namedContactPoints,
+  founderMatchPoints: scoring.founderMatch.founderMatchPoints,
+  mxFoundPoints: scoring.dataCoverage.mxFoundPoints,
 };
+
+export const BASE_SCORE = scoring.baseScore;

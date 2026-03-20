@@ -1,0 +1,49 @@
+{
+  "scoring": {
+    "baseScore": 20,
+    "emailQuality": {
+      "description": "Points for verified email addresses found on the domain",
+      "maxPoints": 40,
+      "validBusinessEmailPoints": 40,
+      "validFreeEmailPoints": 20
+    },
+    "contactIdentity": {
+      "description": "Points for named (non-anonymous) contacts found",
+      "maxPoints": 15,
+      "namedContactPoints": 15
+    },
+    "founderMatch": {
+      "description": "Points for identified founders or decision-makers (P0 contacts)",
+      "maxPoints": 20,
+      "founderMatchPoints": 20
+    },
+    "dataCoverage": {
+      "description": "Bonus for domain having an active MX record (email server confirmed)",
+      "mxFoundPoints": 5
+    }
+  },
+  "p0Detection": {
+    "description": "Rules for identifying decision-makers (P0 contacts). C-level titles auto-qualify. VP/Director qualify if their department matches revenueDepartments.",
+    "cLevelTitles": [
+      "ceo", "chief executive",
+      "cto", "chief technology",
+      "cfo", "chief financial",
+      "cmo", "chief marketing",
+      "coo", "chief operating",
+      "chief",
+      "founder", "co-founder", "cofounder",
+      "owner",
+      "president"
+    ],
+    "vpTitles": [
+      "vp", "vice president", "head of"
+    ],
+    "directorTitles": [
+      "director"
+    ],
+    "revenueDepartments": [
+      "sales", "revenue", "marketing", "growth",
+      "business", "commercial", "partnerships"
+    ]
+  }
+}
