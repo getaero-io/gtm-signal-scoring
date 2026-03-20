@@ -20,6 +20,7 @@ import EnrichNode from './nodes/EnrichNode';
 import ConditionNode from './nodes/ConditionNode';
 import AssignNode from './nodes/AssignNode';
 import AutoReplyNode from './nodes/AutoReplyNode';
+import NotifyNode from './nodes/NotifyNode';
 import NodeSidebar from './NodeSidebar';
 import { Save, CheckCircle2 } from 'lucide-react';
 
@@ -29,6 +30,7 @@ const nodeTypes = {
   conditionNode: ConditionNode,
   assignNode: AssignNode,
   autoReplyNode: AutoReplyNode,
+  notifyNode: NotifyNode,
 };
 
 const DEFAULT_NODES: Node[] = [
@@ -55,6 +57,7 @@ export default function RoutingCanvas() {
   const [edges, setEdges, onEdgesChange] = useEdgesState(DEFAULT_EDGES);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -64,7 +67,9 @@ export default function RoutingCanvas() {
       .then(data => {
         if (data.config?.nodes?.length > 0) {
           setNodes(data.config.nodes);
-          setEdges(data.config.edges);
+          if (Array.isArray(data.config.edges)) {
+            setEdges(data.config.edges);
+          }
         }
         setLoaded(true);
       })
@@ -101,8 +106,10 @@ export default function RoutingCanvas() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setSavedAt(new Date().toLocaleTimeString());
+      setSaveError(null);
     } catch (err) {
       console.error('Failed to save routing config:', err);
+      setSaveError('Save failed. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -130,6 +137,9 @@ export default function RoutingCanvas() {
               <span className="flex items-center gap-1 text-xs text-emerald-600">
                 <CheckCircle2 size={12} /> Saved {savedAt}
               </span>
+            )}
+            {saveError && (
+              <span className="text-xs text-red-500">{saveError}</span>
             )}
             <button
               onClick={handleSave}
