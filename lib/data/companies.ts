@@ -104,15 +104,34 @@ export async function getAccountById(id: string): Promise<Account | null> {
 }
 
 export async function getAccountSignals(account: Account) {
-  const validBusinessEmails = account.score_breakdown.email_quality >= 40 ? 1 : 0;
-  const validFreeEmails =
-    account.score_breakdown.email_quality >= 20 && account.score_breakdown.email_quality < 40 ? 1 : 0;
+  // Fetch raw email counts directly from DB for accurate signal descriptions
+  const rows = await query<{ valid_business: string; valid_free: string; mx: boolean }>(
+    `SELECT
+       COUNT(*) FILTER (
+         WHERE provider = 'zerobounce'
+           AND raw_payload->'result'->>'status' = 'valid'
+           AND (raw_payload->'result'->>'free_email') = 'false'
+       ) AS valid_business,
+       COUNT(*) FILTER (
+         WHERE provider = 'zerobounce'
+           AND raw_payload->'result'->>'status' = 'valid'
+           AND (raw_payload->'result'->>'free_email') = 'true'
+       ) AS valid_free,
+       BOOL_OR(
+         provider = 'zerobounce' AND (raw_payload->'result'->>'mx_found') = 'true'
+       ) AS mx
+     FROM dl_resolved.resolved_people
+     WHERE is_match = true
+       AND identity_payload->'domain' @> jsonb_build_array($1::text)`,
+    [account.id]
+  );
 
+  const row = rows[0];
   return detectSignals({
     contacts: account.key_contacts,
-    validBusinessEmails,
-    validFreeEmails,
-    mxFound: account.score_breakdown.data_coverage > 0,
+    validBusinessEmails: parseInt(row?.valid_business || '0'),
+    validFreeEmails: parseInt(row?.valid_free || '0'),
+    mxFound: row?.mx ?? false,
     accountId: account.id,
     enrichedAt: account.updated_at,
   });
