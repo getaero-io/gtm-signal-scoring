@@ -1,10 +1,30 @@
 import { SeniorityLevel } from '@/types/accounts';
-import {
-  P0_TITLE_PATTERNS,
-  P0_VP_PATTERNS,
-  P0_DIRECTOR_PATTERNS,
-  REVENUE_DEPT_PATTERNS,
-} from './config';
+
+const P0_TITLE_PATTERNS: RegExp[] = [
+  /\b(ceo|chief executive)\b/i,
+  /\b(cto|chief technology)\b/i,
+  /\b(cfo|chief financial)\b/i,
+  /\b(cmo|chief marketing)\b/i,
+  /\b(coo|chief operating)\b/i,
+  /\bchief\b/i,
+  /\bfounder\b/i,
+  /\bco-founder\b/i,
+  /\bowner\b/i,
+  /\bpresident\b/i,
+];
+
+const P0_VP_PATTERNS: RegExp[] = [
+  /\b(vp|vice president)\b/i,
+  /\bhead of\b/i,
+];
+
+const P0_DIRECTOR_PATTERNS: RegExp[] = [
+  /\bdirector\b/i,
+];
+
+const REVENUE_DEPT_PATTERNS: RegExp[] = [
+  /\b(sales|revenue|marketing|growth|business|commercial|partnerships)\b/i,
+];
 
 export function determineSeniority(title?: string): SeniorityLevel {
   if (!title) return 'Individual Contributor';
