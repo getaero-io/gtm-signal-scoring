@@ -1,6 +1,7 @@
 import { generateText, Output } from 'ai';
 import { z } from 'zod';
 import { InboundLead, EnrichmentResult } from '@/types/inbound';
+import { getAnthropicModel, hasAICredentials } from '@/lib/ai/model';
 
 const QualificationSchema = z.object({
   category: z.enum(['QUALIFIED', 'UNQUALIFIED', 'SUPPORT', 'FOLLOW_UP']),
@@ -10,15 +11,12 @@ const QualificationSchema = z.object({
 
 export type QualificationResult = z.infer<typeof QualificationSchema>;
 
-function hasAIConfig(): boolean {
-  return !!(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN);
-}
-
 export async function qualifyLead(
   lead: Pick<InboundLead, 'full_name' | 'email' | 'company' | 'message' | 'domain'>,
   enrichment: EnrichmentResult | null
 ): Promise<QualificationResult | null> {
-  if (!hasAIConfig()) return null;
+  const model = getAnthropicModel('claude-haiku-4.5');
+  if (!model || !hasAICredentials()) return null;
 
   try {
     const contacts = enrichment?.contacts?.slice(0, 3)
@@ -26,7 +24,7 @@ export async function qualifyLead(
       .join(', ') || 'None';
 
     const { output } = await generateText({
-      model: 'anthropic/claude-haiku-4.5',
+      model,
       output: Output.object({ schema: QualificationSchema }),
       prompt: `You are a B2B SaaS GTM qualification AI. Classify this inbound lead into exactly one category:
 

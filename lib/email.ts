@@ -1,9 +1,6 @@
 import { InboundLead, EmailTemplate } from '@/types/inbound';
 import { logEmail } from '@/lib/data/leads';
-
-function hasAIConfig(): boolean {
-  return !!(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN);
-}
+import { getAnthropicModel, hasAICredentials } from '@/lib/ai/model';
 
 const FOUNDER_TEMPLATE = (lead: InboundLead) => ({
   subject: `Quick note from GTM Signal — ${lead.company || lead.domain || 'your company'}`,
@@ -35,7 +32,8 @@ async function generateAIBody(
   lead: InboundLead,
   template: EmailTemplate
 ): Promise<string | null> {
-  if (!hasAIConfig()) return null;
+  const model = getAnthropicModel('claude-haiku-4.5');
+  if (!model || !hasAICredentials()) return null;
 
   try {
     const { generateText } = await import('ai');
@@ -43,7 +41,7 @@ async function generateAIBody(
     const enrichment = lead.enrichment_data;
 
     const { text } = await generateText({
-      model: 'anthropic/claude-haiku-4.5',
+      model,
       prompt: `Write a short, personalized cold reply email body (plain text, no subject line, 3-4 sentences) for this inbound lead.
 
 Tone: warm, direct, non-salesy. Sound like a human, not marketing copy.
