@@ -1,5 +1,9 @@
 import { Pool } from 'pg';
 
+if (!process.env.DATABASE_WRITE_URL && !process.env.DATABASE_URL) {
+  console.error('[db-write] FATAL: Neither DATABASE_WRITE_URL nor DATABASE_URL environment variable is set');
+}
+
 // Uses DATABASE_WRITE_URL for write operations (new inbound.* tables)
 // Falls back to DATABASE_URL if write URL not set (dev convenience)
 const writePool = new Pool({

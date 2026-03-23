@@ -1,3 +1,11 @@
+/** Escape Slack mrkdwn special characters to prevent injection (e.g., <!here>, <!channel>) */
+function escapeSlack(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 export interface OutboundReplyMessage {
   leadName: string;
   companyName: string;
@@ -24,7 +32,7 @@ export function formatOutboundReply(data: OutboundReplyMessage): {
   text: string;
   blocks: unknown[];
 } {
-  const text = `LinkedIn Reply from ${data.leadName} — drafted response ready for review`;
+  const text = `LinkedIn Reply from ${escapeSlack(data.leadName)} — drafted response ready for review`;
 
   const blocks = [
     {
@@ -40,11 +48,11 @@ export function formatOutboundReply(data: OutboundReplyMessage): {
       fields: [
         {
           type: "mrkdwn",
-          text: `*Company:*\n${data.companyName}`,
+          text: `*Company:*\n${escapeSlack(data.companyName)}`,
         },
         {
           type: "mrkdwn",
-          text: `*Campaign:*\n${data.campaignName}`,
+          text: `*Campaign:*\n${escapeSlack(data.campaignName)}`,
         },
       ],
     },
@@ -53,7 +61,7 @@ export function formatOutboundReply(data: OutboundReplyMessage): {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `*Their reply:*\n>${data.originalReply.split("\n").join("\n>")}`,
+        text: `*Their reply:*\n>${escapeSlack(data.originalReply).split("\n").join("\n>")}`,
       },
     },
     { type: "divider" },
@@ -61,7 +69,7 @@ export function formatOutboundReply(data: OutboundReplyMessage): {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `*Drafted response:*\n${data.draftedResponse}`,
+        text: `*Drafted response:*\n${escapeSlack(data.draftedResponse)}`,
       },
     },
     {
@@ -120,7 +128,7 @@ export function formatQualifiedLead(data: QualifiedLeadMessage): {
   text: string;
   blocks: unknown[];
 } {
-  const text = `Qualified Lead: ${data.companyName} (Score: ${data.score}/100)`;
+  const text = `Qualified Lead: ${escapeSlack(data.companyName)} (Score: ${data.score}/100)`;
 
   const blocks = [
     {
@@ -136,7 +144,7 @@ export function formatQualifiedLead(data: QualifiedLeadMessage): {
       fields: [
         {
           type: "mrkdwn",
-          text: `*Contact:*\n${data.leadName}`,
+          text: `*Contact:*\n${escapeSlack(data.leadName)}`,
         },
         {
           type: "mrkdwn",
@@ -144,11 +152,11 @@ export function formatQualifiedLead(data: QualifiedLeadMessage): {
         },
         {
           type: "mrkdwn",
-          text: `*Domain:*\n${data.companyDomain}`,
+          text: `*Domain:*\n${escapeSlack(data.companyDomain)}`,
         },
         {
           type: "mrkdwn",
-          text: `*Assigned Rep:*\n${data.assignedRep}`,
+          text: `*Assigned Rep:*\n${escapeSlack(data.assignedRep)}`,
         },
       ],
     },
@@ -157,14 +165,14 @@ export function formatQualifiedLead(data: QualifiedLeadMessage): {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `*Product Description:*\n${data.productDescription}`,
+        text: `*Product Description:*\n${escapeSlack(data.productDescription)}`,
       },
     },
     {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `*Fit Summary:*\n${data.fitSummary}`,
+        text: `*Fit Summary:*\n${escapeSlack(data.fitSummary)}`,
       },
     },
     {
@@ -172,7 +180,7 @@ export function formatQualifiedLead(data: QualifiedLeadMessage): {
       elements: [
         {
           type: "mrkdwn",
-          text: `${data.flags.length > 0 ? data.flags.join(" | ") + " | " : ""}Lead ID: ${data.leadId}`,
+          text: `${data.flags.length > 0 ? data.flags.map(f => escapeSlack(f)).join(" | ") + " | " : ""}Lead ID: ${data.leadId}`,
         },
       ],
     },

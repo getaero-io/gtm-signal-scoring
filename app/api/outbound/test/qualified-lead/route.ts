@@ -3,10 +3,14 @@ import { postMessage } from '@/lib/outbound/slack/client';
 import { formatQualifiedLead } from '@/lib/outbound/slack/messages';
 
 export async function POST(req: NextRequest) {
+  if (process.env.NODE_ENV === 'production' && !process.env.ALLOW_TEST_ENDPOINTS) {
+    return NextResponse.json({ error: 'Not available in production' }, { status: 404 });
+  }
+
   try {
     const data = await req.json();
 
-    const channel = data.slack_channel || process.env.SLACK_CHANNEL_INBOUND || "replybot";
+    const channel = process.env.SLACK_CHANNEL_INBOUND || "replybot";
     const { text, blocks } = formatQualifiedLead({
       leadName: data.lead_name || "Test Lead",
       companyName: data.company_name || "Test Corp",
@@ -28,6 +32,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("[test/qualified-lead] Error:", err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

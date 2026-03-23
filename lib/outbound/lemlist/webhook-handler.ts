@@ -11,6 +11,7 @@ import { loadConfig } from "../config/loader";
 import { matchResponseTemplate, draftReply } from "./draft-reply";
 import { postMessage } from "../slack/client";
 import { formatOutboundReply } from "../slack/messages";
+import { enforceRateLimit, RateLimitError } from "../safety/rate-limiter";
 
 async function queryOne<T>(sql: string, params?: any[]): Promise<T | null> {
   const rows = await query<T>(sql, params);
@@ -33,7 +34,8 @@ interface LemlistWebhookPayload {
 export async function handleLemlistWebhook(
   payload: LemlistWebhookPayload
 ): Promise<{ ok: boolean; conversation_id?: number }> {
-  console.log("[lemlist/webhook] Received event:", payload.type, payload.email);
+  const redactedEmail = payload.email ? `${payload.email.slice(0, 3)}***@${payload.email.split('@')[1] || '***'}` : 'none';
+  console.log("[lemlist/webhook] Received event:", payload.type, redactedEmail);
 
   if (payload.type !== "emailsReplied") {
     console.log("[lemlist/webhook] Ignoring non-reply event:", payload.type);
@@ -44,6 +46,17 @@ export async function handleLemlistWebhook(
   if (!replyText) {
     console.warn("[lemlist/webhook] No replyText in payload");
     return { ok: true };
+  }
+
+  // Rate limit webhook processing
+  try {
+    await enforceRateLimit('webhook_process');
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      console.warn("[lemlist/webhook] Rate limited:", err.message);
+      return { ok: false, error: 'Rate limit exceeded' } as any;
+    }
+    throw err;
   }
 
   const config = loadConfig();

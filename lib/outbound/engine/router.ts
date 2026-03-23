@@ -49,13 +49,17 @@ interface QualificationResult {
 // Round-robin rep assignment
 // ---------------------------------------------------------------------------
 
-let repIndex = 0;
-
-function getNextRep(config: AppConfig): { name: string; slack_id: string } {
+async function getNextRep(config: AppConfig): Promise<{ name: string; slack_id: string }> {
   const reps = config.routing.reps;
   if (!reps.length) throw new Error("No reps configured in routing rules");
-  const rep = reps[repIndex % reps.length];
-  repIndex++;
+
+  // Use an atomic counter in the routing_log to determine next rep
+  // Count existing qualified assignments to determine round-robin position
+  const result = await queryOne<{ count: string }>(
+    `SELECT COUNT(*) as count FROM inbound.routing_log WHERE action = 'qualified_to_rep'`
+  );
+  const totalAssignments = parseInt(result?.count || '0', 10);
+  const rep = reps[totalAssignments % reps.length];
   return rep;
 }
 
@@ -102,7 +106,7 @@ async function routeQualified(
   config: AppConfig
 ): Promise<void> {
   // 1. Assign rep via round-robin
-  const rep = getNextRep(config);
+  const rep = await getNextRep(config);
 
   // 2. Update lead.assigned_rep and status in DB
   await writeQuery(

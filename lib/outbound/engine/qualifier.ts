@@ -100,6 +100,35 @@ function evaluateFilterCondition(
 }
 
 /**
+ * Validate that a domain is safe for server-side requests (prevent SSRF).
+ * Rejects IP addresses, localhost, internal hostnames, and private ranges.
+ */
+function isSafePublicDomain(input: string): boolean {
+  try {
+    const urlStr = input.startsWith("http") ? input : `https://${input}`;
+    const parsed = new URL(urlStr);
+    const hostname = parsed.hostname.toLowerCase();
+
+    // Reject bare IP addresses
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) return false;
+    // Reject IPv6
+    if (hostname.startsWith('[') || hostname.includes(':')) return false;
+    // Reject localhost and loopback
+    if (hostname === 'localhost' || hostname === '127.0.0.1') return false;
+    // Reject private/internal TLDs
+    if (hostname.endsWith('.local') || hostname.endsWith('.internal') || hostname.endsWith('.corp') || hostname.endsWith('.lan')) return false;
+    // Must have at least one dot (i.e., be a proper FQDN)
+    if (!hostname.includes('.')) return false;
+    // Reject common metadata endpoints
+    if (hostname === '169.254.169.254' || hostname === 'metadata.google.internal') return false;
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Scrape a website via the Deepline API.
  * Returns the raw text content or null on failure.
  */
@@ -196,17 +225,21 @@ export async function qualifyLead(
 
   if (matchedRule.website_analysis.enabled && lead.company_domain) {
     const domain = String(lead.company_domain);
-    const url = domain.startsWith("http") ? domain : `https://${domain}`;
-    const content = await scrapeWebsite(url);
+    if (!isSafePublicDomain(domain)) {
+      console.warn(`[qualifier] Rejecting unsafe domain: ${domain}`);
+    } else {
+      const url = domain.startsWith("http") ? domain : `https://${domain}`;
+      const content = await scrapeWebsite(url);
 
-    if (content) {
-      try {
-        websiteAnalysis = await analyzeWebsite({
-          websiteContent: content,
-          analysisPrompt: matchedRule.website_analysis.prompt,
-        });
-      } catch (err) {
-        console.error("[qualifier] Website analysis failed:", err);
+      if (content) {
+        try {
+          websiteAnalysis = await analyzeWebsite({
+            websiteContent: content,
+            analysisPrompt: matchedRule.website_analysis.prompt,
+          });
+        } catch (err) {
+          console.error("[qualifier] Website analysis failed:", err);
+        }
       }
     }
   }

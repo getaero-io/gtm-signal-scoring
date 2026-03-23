@@ -6,6 +6,7 @@ export async function POST() {
     loadConfig(true);
     return NextResponse.json({ status: "config reloaded" });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error('[config/reload] Error:', err);
+    return NextResponse.json({ error: 'Failed to reload config' }, { status: 500 });
   }
 }
