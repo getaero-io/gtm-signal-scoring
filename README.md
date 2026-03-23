@@ -29,7 +29,7 @@
 
 ---
 
-> **This is a working example for one company's GTM motion** — not a template. The scoring model, ICP definitions, outbound workflows, and response templates are calibrated for a specific context and backtested against real pipeline data. Customize the Atlas scoring weights, P0 title patterns, qualification rules, and integration hooks for your own go-to-market motion before deploying.
+> **This repo has been anonymized.** Company names, signals, scoring weights, and configuration values have been scrubbed or replaced with representative examples — they are not real or accurate. The architecture, code patterns, and integrations are production-tested, but the specific data you see is illustrative. Customize the Atlas scoring weights, P0 title patterns, ICP definitions, qualification rules, and integration hooks for your own go-to-market motion before deploying.
 
 ## What is this?
 
