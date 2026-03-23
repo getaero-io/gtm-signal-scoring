@@ -5,7 +5,7 @@ import type { AppConfig, RoutingRule } from "../config/types";
 import { postMessage } from "../slack/client";
 import { formatQualifiedLead } from "../slack/messages";
 import { upsertAttioPerson } from "../integrations/attio";
-import { addToNurtureCampaign } from "../integrations/smartlead";
+import { addToCampaign, type OutboundProvider } from "../integrations/deepline-outbound";
 import { upsertHubSpotContact } from "../integrations/hubspot";
 
 async function queryOne<T>(sql: string, params?: any[]): Promise<T | null> {
@@ -194,20 +194,22 @@ async function routeNurture(
   qualResult: QualificationResult,
   config: AppConfig
 ): Promise<void> {
-  // 1. Find nurture routing rule and campaign slug
+  // 1. Find nurture routing rule, provider, and campaign slug
   const rule = findRule(config.routing.rules, "nurture_to_campaign");
+  const provider: OutboundProvider =
+    (rule?.params?.provider as OutboundProvider) || "lemlist";
   const campaignSlug =
-    rule?.params?.lemlist_campaign || "default-nurture";
+    rule?.params?.campaign_id || rule?.params?.lemlist_campaign || "default-nurture";
 
-  // 2. Add lead to SmartLead nurture campaign (if email exists)
+  // 2. Add lead to nurture campaign via Deepline (if email exists)
   let campaignId = lead.campaign_id;
   if (lead.email) {
-    await addToNurtureCampaign({
+    await addToCampaign(provider, {
       email: lead.email,
       firstName: lead.first_name || "",
       lastName: lead.last_name || "",
       companyName: lead.company_name || "",
-      campaignSlug,
+      campaignId: campaignSlug,
     });
     campaignId = campaignSlug;
   }

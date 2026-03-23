@@ -2,9 +2,9 @@
  * Slack Interactivity Handler
  *
  * Handles button clicks from Block Kit messages:
- *   - approve_response: Send the drafted reply via SmartLead/Lemlist, update conversation + Slack message
+ *   - approve_response: Queue reply via QStash → Deepline (any provider)
  *   - reject_response:  Mark conversation as rejected, update Slack message
- *   - edit_response:    (placeholder) Opens thread for manual edit — user replies in thread
+ *   - edit_response:    Opens thread for manual edit — user replies in thread
  *
  * Slack sends a POST to /slack/interactions with a URL-encoded `payload` param.
  * We must respond within 3 seconds, so heavy work is done after ack.
@@ -13,9 +13,9 @@
 import { query } from "@/lib/db";
 import { writeQuery } from "@/lib/db-write";
 import { updateMessage, postThreadReply } from "./client";
-import { sendSmartLeadReply } from "../integrations/smartlead";
 import { upsertAttioPerson } from "../integrations/attio";
 import { upsertHubSpotContact } from "../integrations/hubspot";
+import { resolveProvider, normalizeChannel } from "../integrations/deepline-outbound";
 import { queueMessage, cancelMessage } from "../safety/message-queue";
 import { enforceRateLimit, RateLimitError } from "../safety/rate-limiter";
 import crypto from "crypto";
@@ -142,23 +142,31 @@ async function handleApprove(
 
   const responseText = conv.final_response || conv.drafted_response;
   const metadata = conv.metadata ?? {};
-  const lemlistLeadId = String(metadata.lemlist_lead_id ?? "");
-  const smartleadLeadId = String(metadata.smartlead_lead_id ?? "");
   const campaignId = String(metadata.campaign_id ?? "");
+  const leadId = String(
+    metadata.lemlist_lead_id ??
+    metadata.smartlead_lead_id ??
+    metadata.instantly_lead_id ??
+    metadata.heyreach_lead_id ??
+    ""
+  );
 
-  // 1. Queue reply with undo-send delay (instead of immediate send)
+  // Resolve provider and channel from conversation metadata
+  const provider = resolveProvider(metadata);
+  const replyChannel = normalizeChannel(conv.channel);
+
+  // 1. Queue reply with undo-send delay via QStash
   let queueId: number | null = null;
-  if ((lemlistLeadId || smartleadLeadId) && campaignId) {
+  if (leadId && campaignId) {
     try {
       const queued = await queueMessage({
         conversationId,
         leadId: String(conv.lead_id),
-        channel: conv.channel || 'lemlist',
+        channel: replyChannel,
+        provider,
         messageText: responseText,
         metadata: {
-          lemlist_lead_id: lemlistLeadId,
-          smartlead_lead_id: smartleadLeadId,
-          campaign_id: campaignId,
+          ...metadata,
           approved_by: userName,
           reply_channel: conv.channel,
         },
@@ -266,6 +274,8 @@ async function handleApprove(
         conversation_id: conversationId,
         approved_by: userName,
         campaign_id: campaignId,
+        provider,
+        channel: replyChannel,
       }),
     ]
   );
