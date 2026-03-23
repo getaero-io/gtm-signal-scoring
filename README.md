@@ -72,20 +72,6 @@ A standalone GTM engineering platform that turns your PostgreSQL database into a
 
 ---
 
-## Screenshots
-
-| Accounts Dashboard | Lead Inbox | Routing Flow Editor |
-|:---:|:---:|:---:|
-| ![Accounts](docs/images/accounts-dashboard.png) | ![Leads](docs/images/leads-inbox.png) | ![Routing](docs/images/routing-editor.png) |
-
-| Scoring Config | Slack Approval | Team Management |
-|:---:|:---:|:---:|
-| ![Scoring](docs/images/scoring-config.png) | ![Slack](docs/images/slack-approval.png) | ![Team](docs/images/team-management.png) |
-
-> **Note:** To generate screenshots, run the app locally (`npm run dev`) and capture the pages listed in [Frontend Pages](#frontend-pages).
-
----
-
 ## Architecture
 
 ```
