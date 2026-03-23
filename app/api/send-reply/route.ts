@@ -5,15 +5,18 @@
  * QStash delivers the message body with queue metadata,
  * and this endpoint sends it through the correct provider/channel.
  *
+ * Idempotency: atomically claims the DB row (queued → sending) before
+ * calling the provider API, preventing double-sends on QStash retries
+ * and race conditions with undo cancellation.
+ *
  * Protected by QStash signature verification.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
-import { markSent, markFailed } from "@/lib/outbound/safety/message-queue";
+import { markSent, markFailed, claimForSending } from "@/lib/outbound/safety/message-queue";
 import {
   sendReply,
-  resolveProvider,
   normalizeChannel,
   type OutboundProvider,
   type ReplyChannel,
@@ -38,18 +41,30 @@ async function handler(req: NextRequest) {
     leadId,
     campaignId,
     messageText,
-    metadata,
   } = body;
 
-  const provider = resolveProvider({ provider: body.provider, ...metadata });
+  // Trust the provider and channel serialized at queue time
+  const provider = body.provider;
   const channel = normalizeChannel(body.channel);
 
   if (!leadId || !campaignId) {
+    // Permanent failure — return 200 so QStash does not retry
     await markFailed(queueId, "Missing leadId or campaignId in QStash payload");
     return NextResponse.json(
-      { error: "Missing leadId or campaignId" },
-      { status: 400 }
+      { error: "Missing leadId or campaignId", queueId },
+      { status: 200 }
     );
+  }
+
+  // Atomically claim the row: queued → sending.
+  // Prevents double-sends on QStash retries and races with undo cancellation.
+  const claimed = await claimForSending(queueId);
+  if (!claimed) {
+    // Already cancelled, sent, or claimed by another retry — return 200 to stop QStash retries
+    console.log(
+      `[send-reply] Skipped queue=${queueId} — already claimed, sent, or cancelled`
+    );
+    return NextResponse.json({ ok: true, skipped: true, queueId });
   }
 
   try {
@@ -70,10 +85,31 @@ async function handler(req: NextRequest) {
   } catch (err) {
     const errorMsg = (err as Error).message;
     console.error(`[send-reply] Failed queue=${queueId}:`, err);
+
+    // Distinguish transient vs permanent errors
+    const isTransient =
+      errorMsg.includes("ECONNREFUSED") ||
+      errorMsg.includes("ETIMEDOUT") ||
+      errorMsg.includes("503") ||
+      errorMsg.includes("429") ||
+      errorMsg.includes("502") ||
+      errorMsg.includes("504");
+
+    if (isTransient) {
+      // Return 500 so QStash retries with backoff
+      // Leave status as 'sending' so retry can re-claim via claimForSending
+      // (claimForSending accepts both 'queued' and 'sending' statuses)
+      return NextResponse.json(
+        { error: errorMsg, queueId, retryable: true },
+        { status: 500 }
+      );
+    }
+
+    // Permanent failure — mark failed and return 200 to stop retries
     await markFailed(queueId, errorMsg);
     return NextResponse.json(
-      { error: errorMsg, queueId },
-      { status: 500 }
+      { error: errorMsg, queueId, retryable: false },
+      { status: 200 }
     );
   }
 }

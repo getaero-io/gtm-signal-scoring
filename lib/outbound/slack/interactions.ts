@@ -161,7 +161,7 @@ async function handleApprove(
     try {
       const queued = await queueMessage({
         conversationId,
-        leadId: String(conv.lead_id),
+        leadId,
         channel: replyChannel,
         provider,
         messageText: responseText,
