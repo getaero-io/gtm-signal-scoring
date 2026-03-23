@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://deepline.com">
-    <img src="https://deepline.com/logo-dark.svg" alt="Deepline" width="200" />
+    <img src="docs/images/deepline-logo.svg" alt="Deepline" width="200" />
   </a>
 </p>
 
