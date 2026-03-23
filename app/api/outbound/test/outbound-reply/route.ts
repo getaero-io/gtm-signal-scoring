@@ -41,8 +41,12 @@ export async function POST(req: NextRequest) {
         data.original_message || "Hi, I saw your product and wanted to learn more.",
         data.drafted_response || "Thanks for reaching out! I'd love to set up a quick call.",
         JSON.stringify({
+          provider: data.provider || "lemlist",
           campaign_id: data.campaign_id || "test-campaign",
-          smartlead_lead_id: data.smartlead_lead_id || "",
+          ...(data.provider === "smartlead" ? { smartlead_lead_id: data.lead_id || "" } : {}),
+          ...(data.provider === "instantly" ? { instantly_lead_id: data.lead_id || "" } : {}),
+          ...(data.provider === "heyreach" ? { heyreach_lead_id: data.lead_id || "" } : {}),
+          ...(!data.provider || data.provider === "lemlist" ? { lemlist_lead_id: data.lead_id || "" } : {}),
         }),
       ]
     );
@@ -55,7 +59,8 @@ export async function POST(req: NextRequest) {
       campaignName: data.campaign_name || "Spring Cash Outreach",
       originalReply: data.original_message || "Hi, I saw your product and wanted to learn more.",
       draftedResponse: data.drafted_response || "Thanks for reaching out! I'd love to set up a quick call.",
-      smartleadUrl: `https://app.lemlist.com/campaigns/${data.campaign_id || "test"}`,
+      campaignUrl: data.campaign_url || `https://app.lemlist.com/campaigns/${data.campaign_id || "test"}`,
+      provider: data.provider || "lemlist",
       conversationId: convId,
     });
 
