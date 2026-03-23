@@ -15,6 +15,8 @@ import { writeQuery } from "@/lib/db-write";
 import { updateMessage, postThreadReply } from "./client";
 import { sendSmartLeadReply } from "../integrations/smartlead";
 import { upsertAttioPerson } from "../integrations/attio";
+import { queueMessage, cancelMessage } from "../safety/message-queue";
+import { enforceRateLimit, RateLimitError } from "../safety/rate-limiter";
 import crypto from "crypto";
 
 async function queryOne<T>(sql: string, params?: any[]): Promise<T | null> {
@@ -121,27 +123,52 @@ async function handleApprove(
     return;
   }
 
+  // Rate limit check
+  try {
+    await enforceRateLimit('outbound_reply', userName);
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      await postThreadReply({
+        channel,
+        threadTs: messageTs,
+        text: `Rate limit reached. Too many approvals recently — please wait ${err.retryAfterSec} seconds before approving more.`,
+      });
+      return;
+    }
+    throw err;
+  }
+
   const responseText = conv.final_response || conv.drafted_response;
   const metadata = conv.metadata ?? {};
   const lemlistLeadId = String(metadata.lemlist_lead_id ?? "");
   const smartleadLeadId = String(metadata.smartlead_lead_id ?? "");
   const campaignId = String(metadata.campaign_id ?? "");
 
-  // 1. Send reply via SmartLead or Lemlist
+  // 1. Queue reply with undo-send delay (instead of immediate send)
+  let queueId: number | null = null;
   if ((lemlistLeadId || smartleadLeadId) && campaignId) {
     try {
-      await sendSmartLeadReply({
-        leadId: lemlistLeadId || smartleadLeadId,
-        message: responseText,
-        campaignId,
+      const queued = await queueMessage({
+        conversationId,
+        leadId: String(conv.lead_id),
+        channel: 'lemlist',
+        messageText: responseText,
+        metadata: {
+          lemlist_lead_id: lemlistLeadId,
+          smartlead_lead_id: smartleadLeadId,
+          campaign_id: campaignId,
+          approved_by: userName,
+        },
       });
+      queueId = queued.queueId;
     } catch (err) {
-      console.error("[interactions] Reply send failed:", err);
+      console.error("[interactions] Queue failed:", err);
       await postThreadReply({
         channel,
         threadTs: messageTs,
-        text: `Failed to send reply: ${(err as Error).message}. Please send manually.`,
+        text: `Failed to queue reply: ${(err as Error).message}. Please try again.`,
       });
+      return;
     }
   }
 
@@ -166,37 +193,52 @@ async function handleApprove(
     );
   }
 
-  // 3. Mark conversation as approved
+  // 3. Mark conversation as approved (queued for send)
   await writeQuery(
     `UPDATE inbound.conversations
-     SET status = 'approved', final_response = $1, approved_by = $2, sent_at = NOW(), updated_at = NOW()
+     SET status = 'approved_queued', final_response = $1, approved_by = $2, updated_at = NOW()
      WHERE id = $3`,
     [responseText, userName, conversationId]
   );
 
-  // 4. Update Slack message to show approved state
+  // 4. Update Slack message to show approved state with undo option
+  const undoBlocks = [
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*Approved* by <@${userId}> — sending in ~60 seconds\n\n*Response:*\n${responseText}`,
+      },
+    },
+    {
+      type: "actions",
+      block_id: `undo_${conversationId}`,
+      elements: [
+        {
+          type: "button",
+          text: { type: "plain_text", text: "Undo Send", emoji: true },
+          style: "danger",
+          action_id: "undo_send",
+          value: JSON.stringify({ queueId, conversationId }),
+        },
+      ],
+    },
+    {
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: `Queued at ${new Date().toISOString()} | Conversation #${conversationId}`,
+        },
+      ],
+    },
+  ];
+
   await updateMessage({
     channel,
     ts: messageTs,
-    text: `Approved by ${userName} and sent`,
-    blocks: [
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: `*Approved and sent* by <@${userId}>\n\n*Response:*\n${responseText}`,
-        },
-      },
-      {
-        type: "context",
-        elements: [
-          {
-            type: "mrkdwn",
-            text: `Sent at ${new Date().toISOString()} | Conversation #${conversationId}`,
-          },
-        ],
-      },
-    ],
+    text: `Approved by ${userName} — sending in ~60 seconds (click Undo to cancel)`,
+    blocks: undoBlocks,
   });
 
   // 5. Log routing action
@@ -297,6 +339,86 @@ async function handleEdit(
   });
 }
 
+async function handleUndoSend(
+  queueId: number,
+  conversationId: number,
+  userId: string,
+  userName: string,
+  channel: string,
+  messageTs: string
+): Promise<void> {
+  const cancelled = await cancelMessage(queueId, userName);
+
+  if (cancelled) {
+    // Revert conversation status back to pending
+    await writeQuery(
+      `UPDATE inbound.conversations SET status = 'pending', approved_by = NULL, updated_at = NOW() WHERE id = $1`,
+      [conversationId]
+    );
+
+    await updateMessage({
+      channel,
+      ts: messageTs,
+      text: `Send cancelled by ${userName}`,
+      blocks: [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*Send cancelled* by <@${userId}> — message was NOT sent.\nConversation returned to pending status.`,
+          },
+        },
+        {
+          type: "actions",
+          block_id: `outbound_${conversationId}`,
+          elements: [
+            {
+              type: "button",
+              text: { type: "plain_text", text: "Approve & Send", emoji: true },
+              style: "primary",
+              action_id: "approve_response",
+              value: String(conversationId),
+            },
+            {
+              type: "button",
+              text: { type: "plain_text", text: "Reject", emoji: true },
+              style: "danger",
+              action_id: "reject_response",
+              value: String(conversationId),
+            },
+          ],
+        },
+        {
+          type: "context",
+          elements: [
+            {
+              type: "mrkdwn",
+              text: `Cancelled at ${new Date().toISOString()} | Conversation #${conversationId}`,
+            },
+          ],
+        },
+      ],
+    });
+
+    await writeQuery(
+      `INSERT INTO inbound.routing_log (lead_id, action, details, created_at) VALUES (
+        (SELECT lead_id FROM inbound.conversations WHERE id = $1),
+        $2, $3, NOW())`,
+      [
+        conversationId,
+        "outbound_reply_cancelled",
+        JSON.stringify({ conversation_id: conversationId, cancelled_by: userName, queue_id: queueId }),
+      ]
+    );
+  } else {
+    await postThreadReply({
+      channel,
+      threadTs: messageTs,
+      text: `Could not cancel — the message may have already been sent or was previously cancelled.`,
+    });
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Main handler
 // ---------------------------------------------------------------------------
@@ -311,29 +433,42 @@ export async function handleInteraction(
   if (payload.type !== "block_actions") return;
 
   for (const action of payload.actions) {
-    const conversationId = parseInt(action.value, 10);
-    if (isNaN(conversationId)) {
-      console.warn("[interactions] Non-numeric action value:", action.value);
-      continue;
-    }
-
     const userId = payload.user.id;
     const userName = payload.user.username || payload.user.name;
     const channel = payload.channel.id;
     const messageTs = payload.message.ts;
 
     switch (action.action_id) {
+      case "undo_send": {
+        let parsed: { queueId: number; conversationId: number };
+        try {
+          parsed = JSON.parse(action.value);
+        } catch {
+          console.warn("[interactions] Invalid undo_send value:", action.value);
+          continue;
+        }
+        await handleUndoSend(parsed.queueId, parsed.conversationId, userId, userName, channel, messageTs);
+        break;
+      }
+
       case "approve_response":
-        await handleApprove(conversationId, userId, userName, channel, messageTs);
-        break;
-
       case "reject_response":
-        await handleReject(conversationId, userId, userName, channel, messageTs);
-        break;
+      case "edit_response": {
+        const conversationId = parseInt(action.value, 10);
+        if (isNaN(conversationId)) {
+          console.warn("[interactions] Non-numeric action value:", action.value);
+          continue;
+        }
 
-      case "edit_response":
-        await handleEdit(conversationId, userId, channel, messageTs);
+        if (action.action_id === "approve_response") {
+          await handleApprove(conversationId, userId, userName, channel, messageTs);
+        } else if (action.action_id === "reject_response") {
+          await handleReject(conversationId, userId, userName, channel, messageTs);
+        } else {
+          await handleEdit(conversationId, userId, channel, messageTs);
+        }
         break;
+      }
 
       default:
         console.warn("[interactions] Unknown action_id:", action.action_id);

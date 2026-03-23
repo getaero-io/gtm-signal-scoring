@@ -5,6 +5,10 @@ import { postMessage } from '@/lib/outbound/slack/client';
 import { formatOutboundReply } from '@/lib/outbound/slack/messages';
 
 export async function POST(req: NextRequest) {
+  if (process.env.NODE_ENV === 'production' && !process.env.ALLOW_TEST_ENDPOINTS) {
+    return NextResponse.json({ error: 'Not available in production' }, { status: 404 });
+  }
+
   try {
     const data = await req.json();
 
@@ -44,7 +48,7 @@ export async function POST(req: NextRequest) {
     );
     const convId = convRows[0].id;
 
-    const channel = data.slack_channel || process.env.SLACK_CHANNEL_OUTBOUND || "replybot";
+    const channel = process.env.SLACK_CHANNEL_OUTBOUND || "replybot";
     const { text, blocks } = formatOutboundReply({
       leadName: `${data.first_name || "Test"} ${data.last_name || "Lead"}`,
       companyName: data.company_name || "Test Corp",
@@ -70,6 +74,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("[test/outbound-reply] Error:", err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

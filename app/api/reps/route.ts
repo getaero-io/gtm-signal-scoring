@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod/v4';
 import { getReps, createRep } from '@/lib/data/reps';
+
+const createRepSchema = z.object({
+  name: z.string().min(1).max(100),
+  email: z.email().max(255),
+  role: z.enum(['Senior', 'AE', 'SDR']),
+  max_leads_per_day: z.number().int().min(1).max(200).default(20),
+});
 
 export async function GET() {
   try {
@@ -14,15 +22,11 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    if (!body.name || !body.email || !body.role) {
-      return NextResponse.json({ error: 'name, email, role required' }, { status: 400 });
+    const result = createRepSchema.safeParse(body);
+    if (!result.success) {
+      return NextResponse.json({ error: 'Validation failed', issues: result.error.issues }, { status: 400 });
     }
-    const rep = await createRep({
-      name: body.name,
-      email: body.email,
-      role: body.role,
-      max_leads_per_day: body.max_leads_per_day || 20,
-    });
+    const rep = await createRep(result.data);
     return NextResponse.json({ rep });
   } catch (err) {
     console.error('Error creating rep:', err);
