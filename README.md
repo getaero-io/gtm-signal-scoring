@@ -1,30 +1,90 @@
-# gtm-signal-scoring
+<p align="center">
+  <a href="https://deepline.com">
+    <img src="https://deepline.com/logo-dark.svg" alt="Deepline" width="200" />
+  </a>
+</p>
 
-> **This is an example implementation for one company's GTM motion.** The scoring model, signal sources, ICP definitions, and outbound workflows are calibrated for a specific context. Personalize the Atlas scoring weights, P0 title patterns, qualification rules, response templates, and integration hooks for your own use before deploying to production.
+<h1 align="center">GTM Signal Scoring</h1>
 
-A standalone, open-source GTM signal scoring and outbound automation platform. Turns your PostgreSQL database into a ranked account intelligence layer with AI-powered reply drafting, Slack-based approval workflows, and configurable lead routing — built on real signals, not synthetic data.
+<p align="center">
+  Open-source go-to-market signal scoring and outbound automation.<br/>
+  Account intelligence, AI-powered reply drafting, lead qualification, and sales routing — powered by <a href="https://deepline.com">Deepline</a>.
+</p>
 
-## What It Does
+<p align="center">
+  <a href="#quick-start">Quick Start</a> &middot;
+  <a href="#features">Features</a> &middot;
+  <a href="#architecture">Architecture</a> &middot;
+  <a href="https://deepline.com">Deepline</a> &middot;
+  <a href="#license">License</a>
+</p>
 
-### Signal Scoring
-- Scores every account using the **Atlas algorithm** (tech stack, contact seniority, P0 penetration)
-- 30-day score trends with observed vs derived data clearly labeled
+<p align="center">
+  <img src="https://img.shields.io/badge/Next.js-16-black" alt="Next.js 16" />
+  <img src="https://img.shields.io/badge/PostgreSQL-Neon-blue" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/Deepline-enrichment-purple" alt="Deepline" />
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License" />
+  <img src="https://img.shields.io/github/stars/getaero-io/gtm-signal-scoring?style=social" alt="GitHub stars" />
+</p>
+
+---
+
+> **This is a working example for one company's GTM motion** — not a template. The scoring model, ICP definitions, outbound workflows, and response templates are calibrated for a specific context and backtested against real pipeline data. Customize the Atlas scoring weights, P0 title patterns, qualification rules, and integration hooks for your own go-to-market motion before deploying.
+
+## What is this?
+
+A standalone GTM engineering platform that turns your PostgreSQL database into a ranked account intelligence layer. Built for sales and revenue teams who want **signal-based prioritization**, **automated outbound reply handling**, and **lead qualification** — without relying on expensive all-in-one platforms.
+
+**Built with:** Next.js, PostgreSQL (Neon), [Deepline](https://deepline.com) enrichment, OpenAI, Slack, Lemlist, Attio CRM
+
+---
+
+## Features
+
+### Signal Scoring (Atlas Algorithm)
+- Scores every account using tech stack adoption, contact seniority, and P0 penetration signals
+- 30-day score trends with observed vs. derived data clearly labeled
 - Configurable ICP definitions and qualification rules via YAML
+- Backtested scoring weights you can override for your GTM motion
 
 ### Outbound Reply Engine
 - Receives inbound replies via **Lemlist webhooks**
-- Drafts AI-powered responses using **OpenAI GPT-5-mini** with company context
+- Drafts AI-powered responses using **OpenAI GPT-5-mini** with full company context
 - Posts to **Slack** for human review with Approve / Edit / Reject buttons
 - **Undo Send** — approved messages queue for 60 seconds before delivery
-- Routes qualified leads to reps (round-robin) and syncs to **Attio CRM**
+- Round-robin lead routing to sales reps with **Attio CRM** sync
+
+### Lead Qualification Pipeline
+- AI-powered qualification against configurable ICP definitions
+- Website scraping + LLM analysis for product-market fit scoring
+- Automatic routing: qualified leads go to reps, others enter nurture campaigns
+- Full audit trail of every routing decision
 
 ### Safety & Security
 - API key authentication on all dashboard routes
-- Slack signature verification (HMAC-SHA256)
-- Rate limiting on replies, webhooks, LLM calls
-- SSRF protection on domain scraping
-- LLM prompt injection guardrails
-- PII redaction in logs
+- Slack HMAC-SHA256 signature verification
+- Rate limiting on replies, webhooks, LLM calls (sliding-window, DB-backed)
+- SSRF protection on domain scraping (rejects IPs, localhost, internal hosts, cloud metadata)
+- LLM prompt injection guardrails (text capping, untrusted input labeling)
+- PII redaction in all log output
+- Zod input validation on every write endpoint
+- Error sanitization — no internal details leaked in API responses
+
+---
+
+## Screenshots
+
+| Accounts Dashboard | Lead Inbox | Routing Flow Editor |
+|:---:|:---:|:---:|
+| ![Accounts](docs/images/accounts-dashboard.png) | ![Leads](docs/images/leads-inbox.png) | ![Routing](docs/images/routing-editor.png) |
+
+| Scoring Config | Slack Approval | Team Management |
+|:---:|:---:|:---:|
+| ![Scoring](docs/images/scoring-config.png) | ![Slack](docs/images/slack-approval.png) | ![Team](docs/images/team-management.png) |
+
+> **Note:** To generate screenshots, run the app locally (`npm run dev`) and capture the pages listed in [Frontend Pages](#frontend-pages).
+
+---
 
 ## Architecture
 
@@ -53,13 +113,19 @@ A standalone, open-source GTM signal scoring and outbound automation platform. T
             └───────────────────────────┘
 ```
 
-## Prerequisites
+**Data flow:** [Deepline](https://deepline.com) enriches company and contact records → Atlas algorithm scores accounts → qualified leads route to sales reps → outbound replies get AI-drafted responses → Slack approval workflow → message queue with undo-send → CRM sync.
 
-- **Node.js 20+**
-- **PostgreSQL** (Neon recommended) with `dl_resolved` and `dl_graph` schemas
-- **Deepline CLI** installed and authenticated (for enrichment)
+---
 
 ## Quick Start
+
+### Prerequisites
+
+- **Node.js 20+**
+- **PostgreSQL** ([Neon](https://neon.tech) recommended) with `dl_resolved` and `dl_graph` schemas
+- **[Deepline CLI](https://deepline.com)** installed and authenticated (for enrichment)
+
+### Install
 
 ```bash
 git clone https://github.com/getaero-io/gtm-signal-scoring
@@ -90,6 +156,8 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+---
+
 ## Environment Variables
 
 ### Required
@@ -118,7 +186,7 @@ LEMLIST_API_KEY=...
 LEMLIST_WEBHOOK_SECRET=your-shared-secret
 LEMLIST_CAMPAIGN_IDS=camp_abc,camp_def
 
-# Deepline enrichment API
+# Deepline enrichment API (https://deepline.com)
 DEEPLINE_API_KEY=...
 DEEPLINE_CLI_PATH=/usr/local/bin/deepline
 ```
@@ -167,14 +235,16 @@ SMTP_PASS=
 SMTP_FROM="GTM Signal <noreply@example.com>"
 ```
 
+---
+
 ## Frontend Pages
 
 | Route | Description |
 |-------|-------------|
-| `/` | Accounts dashboard — scored accounts with trends |
-| `/leads` | Inbound leads inbox — status, scoring, assignment |
+| `/` | Accounts dashboard — scored accounts with 30-day trends |
+| `/leads` | Inbound leads inbox — status, scoring, rep assignment |
 | `/routing` | Visual routing flow editor (ReactFlow) |
-| `/team` | Sales rep management — roles, capacity |
+| `/team` | Sales rep management — roles, capacity, round-robin |
 | `/scoring` | Scoring config viewer with edit prompts |
 | `/demo` | Public lead submission form |
 | `/accounts/[id]` | Account detail — score breakdown, contacts, signals |
@@ -211,6 +281,8 @@ SMTP_FROM="GTM Signal <noreply@example.com>"
 | POST | `/api/outbound/test/outbound-reply` | Test reply flow |
 | POST | `/api/outbound/test/qualified-lead` | Test qualification notification |
 
+---
+
 ## Outbound Configuration (YAML)
 
 All outbound behavior is configured via YAML files in `config/outbound/`:
@@ -235,6 +307,8 @@ curl -X POST https://your-app.vercel.app/api/outbound/config/reload \
   -H "x-api-key: $INTERNAL_API_KEY"
 ```
 
+---
+
 ## Scheduled Tasks (Trigger.dev)
 
 | Task | Schedule | Description |
@@ -243,6 +317,8 @@ curl -X POST https://your-app.vercel.app/api/outbound/config/reload \
 | `outbound-reply-check` | Every 15 min (business hours) | Polls for new Lemlist replies |
 
 Configure in `trigger.config.ts`. Requires a [Trigger.dev](https://trigger.dev) account.
+
+---
 
 ## Scoring Model
 
@@ -256,9 +332,11 @@ Configure in `trigger.config.ts`. Requires a [Trigger.dev](https://trigger.dev) 
 - Company size: +5 to +20
 - Max: 100 points
 
+---
+
 ## Database Schema
 
-### Core (populated by Deepline)
+### Core (populated by [Deepline](https://deepline.com))
 - `dl_resolved.resolved_companies` — enriched company records
 - `dl_resolved.resolved_people` — contacts linked via `super_company_id`
 
@@ -272,33 +350,39 @@ Configure in `trigger.config.ts`. Requires a [Trigger.dev](https://trigger.dev) 
 
 See [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) for full details.
 
+---
+
 ## Security
 
 - **API Authentication** — All dashboard API routes require `x-api-key` header (configurable via `INTERNAL_API_KEY`)
 - **Webhook Verification** — Lemlist uses shared secret; Slack uses HMAC-SHA256 signature verification
-- **Rate Limiting** — Configurable limits per action type (replies, webhooks, LLM calls)
-- **SSRF Protection** — Domain validation before server-side requests (rejects IPs, localhost, internal hosts)
+- **Rate Limiting** — Configurable sliding-window limits per action type (replies, webhooks, LLM calls)
+- **SSRF Protection** — Domain validation before server-side requests (rejects IPs, localhost, internal hosts, cloud metadata endpoints)
 - **Prompt Injection Guards** — Reply text capped at 2000 chars, marked as untrusted in LLM prompts
 - **PII Redaction** — Email addresses redacted in all log output
 - **Input Validation** — Zod schemas on all write endpoints
 - **Error Sanitization** — No internal details leaked in API error responses
 - **Undo Send** — 60-second delay before message delivery with cancellation support
 
+---
+
 ## Integrations
 
 | Integration | Type | Purpose |
 |---|---|---|
-| Deepline CLI | Required | Company/contact enrichment |
-| PostgreSQL / Neon | Required | Primary datastore |
+| [Deepline](https://deepline.com) CLI | Required | Company/contact enrichment |
+| PostgreSQL / [Neon](https://neon.tech) | Required | Primary datastore |
 | OpenAI | Required (outbound) | LLM reply drafting |
 | Slack | Required (outbound) | Approval workflow |
 | Lemlist | Required (outbound) | Email campaign replies |
 | Attio | Optional | CRM sync for qualified leads |
-| Trigger.dev | Optional | Scheduled qualification + polling |
+| [Trigger.dev](https://trigger.dev) | Optional | Scheduled qualification + polling |
 | HubSpot | Optional plugin | CRM sync |
 | Notion | Optional plugin | Database sync |
 | Anthropic | Optional | AI qualification |
 | Exa | Optional | Web search enrichment fallback |
+
+---
 
 ## Customization
 
@@ -311,6 +395,8 @@ The scoring model and outbound engine are intentionally opinionated. See [docs/C
 - Response templates and triggers (`config/outbound/response-templates.yaml`)
 - Routing rules and rep assignment (`config/outbound/routing-rules.yaml`)
 - Company context for LLM prompts (`config/outbound/company-context/`)
+
+---
 
 ## Deployment
 
@@ -329,6 +415,30 @@ vercel deploy --prod
 npx trigger.dev@latest deploy
 ```
 
+---
+
+## Related
+
+- **[Deepline](https://deepline.com)** — The enrichment engine that powers contact and company data
+- **[docs/SCORING_MODEL.md](docs/SCORING_MODEL.md)** — Full Atlas algorithm documentation (backtested example)
+- **[docs/CUSTOMIZATION.md](docs/CUSTOMIZATION.md)** — How to adapt scoring, ICP, and outbound config
+- **[docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md)** — Complete schema reference
+- **[docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)** — Integration setup guides
+
+---
+
+## Keywords
+
+`gtm` `go-to-market` `signal-scoring` `outbound` `lead-generation` `lead-qualification` `sales-automation` `account-intelligence` `icp-scoring` `deepline` `lemlist` `slack` `attio` `crm` `ai-reply` `llm` `next.js` `postgresql` `neon`
+
+---
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+---
+
+<p align="center">
+  Built with <a href="https://deepline.com">Deepline</a>
+</p>
