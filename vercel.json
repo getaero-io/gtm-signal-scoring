@@ -2,11 +2,5 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "deploymentProtection": {
     "production": "none"
-  },
-  "crons": [
-    {
-      "path": "/api/cron/send-queued",
-      "schedule": "* * * * *"
-    }
-  ]
+  }
 }
