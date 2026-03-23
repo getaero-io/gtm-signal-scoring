@@ -1,0 +1,198 @@
+/**
+ * Lemlist Webhook Handler
+ *
+ * Receives webhook payloads from Lemlist when a lead replies,
+ * drafts an LLM-powered response, and posts to Slack for approval.
+ */
+
+import { query } from "@/lib/db";
+import { writeQuery } from "@/lib/db-write";
+import { loadConfig } from "../config/loader";
+import { matchResponseTemplate, draftReply } from "./draft-reply";
+import { postMessage } from "../slack/client";
+import { formatOutboundReply } from "../slack/messages";
+
+async function queryOne<T>(sql: string, params?: any[]): Promise<T | null> {
+  const rows = await query<T>(sql, params);
+  return rows[0] ?? null;
+}
+
+interface LemlistWebhookPayload {
+  type: string;
+  campaignId?: string;
+  campaignName?: string;
+  leadId?: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  companyName?: string;
+  replyText?: string;
+  [key: string]: unknown;
+}
+
+export async function handleLemlistWebhook(
+  payload: LemlistWebhookPayload
+): Promise<{ ok: boolean; conversation_id?: number }> {
+  console.log("[lemlist/webhook] Received event:", payload.type, payload.email);
+
+  if (payload.type !== "emailsReplied") {
+    console.log("[lemlist/webhook] Ignoring non-reply event:", payload.type);
+    return { ok: true };
+  }
+
+  const replyText = payload.replyText;
+  if (!replyText) {
+    console.warn("[lemlist/webhook] No replyText in payload");
+    return { ok: true };
+  }
+
+  const config = loadConfig();
+  const prospectName =
+    [payload.firstName, payload.lastName].filter(Boolean).join(" ") ||
+    "Unknown";
+  const companyName = payload.companyName || "Unknown Company";
+
+  // 1. Upsert lead in DB
+  const existingLead = payload.email
+    ? await queryOne<{ id: string }>(
+        `SELECT id FROM leads WHERE email = $1`,
+        [payload.email]
+      )
+    : null;
+
+  let leadId: string;
+  if (existingLead) {
+    leadId = existingLead.id;
+    await writeQuery(
+      `UPDATE leads SET
+        first_name = COALESCE($1, first_name),
+        last_name = COALESCE($2, last_name),
+        company_name = COALESCE($3, company_name),
+        full_name = COALESCE($4, full_name),
+        updated_at = NOW()
+      WHERE id = $5`,
+      [
+        payload.firstName,
+        payload.lastName,
+        companyName,
+        prospectName,
+        leadId,
+      ]
+    );
+  } else {
+    const rows = await writeQuery<{ id: string }>(
+      `INSERT INTO leads (id, full_name, first_name, last_name, email, company, company_name, source, status, metadata)
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $5, 'lemlist', 'replied', $6)
+       RETURNING id`,
+      [
+        prospectName,
+        payload.firstName || null,
+        payload.lastName || null,
+        payload.email || null,
+        companyName,
+        JSON.stringify({
+          lemlist_lead_id: payload.leadId,
+          lemlist_campaign_id: payload.campaignId,
+        }),
+      ]
+    );
+    leadId = rows[0].id;
+  }
+
+  // 2. Match response template
+  const template = matchResponseTemplate(replyText, config.response_templates);
+  console.log("[lemlist/webhook] Matched template:", template.name);
+
+  // 3. Load lead details
+  const lead = await queryOne<{
+    id: string;
+    title: string | null;
+    company_domain: string | null;
+  }>(`SELECT id, title, company_domain FROM leads WHERE id = $1`, [leadId]);
+
+  // 4. Pick rep (simple random from config)
+  const reps = config.routing.reps;
+  const repIndex = Math.floor(Math.random() * reps.length);
+  const repName = reps[repIndex]?.name || "Tej";
+
+  // 5. Draft reply via LLM
+  const draftedResponse = await draftReply({
+    replyText,
+    prospectName,
+    prospectTitle: lead?.title || null,
+    companyName,
+    companyDescription: null,
+    campaignName: payload.campaignName || "Unknown Campaign",
+    originalMessage: null,
+    repName,
+    template,
+    companyContext: config.company_context,
+  });
+
+  console.log(
+    "[lemlist/webhook] LLM drafted response:",
+    draftedResponse.slice(0, 100)
+  );
+
+  // 6. Create conversation record
+  const convRows = await writeQuery<{ id: number }>(
+    `INSERT INTO conversations (lead_id, direction, channel, original_message, drafted_response, status, metadata)
+     VALUES ($1, 'inbound', 'lemlist', $2, $3, 'pending', $4)
+     RETURNING id`,
+    [
+      leadId,
+      replyText,
+      draftedResponse,
+      JSON.stringify({
+        lemlist_lead_id: payload.leadId,
+        campaign_id: payload.campaignId,
+        campaign_name: payload.campaignName,
+        template_matched: template.name,
+        rep_name: repName,
+      }),
+    ]
+  );
+  const convId = convRows[0].id;
+
+  // 7. Post to Slack
+  const slackChannel = process.env.SLACK_CHANNEL_OUTBOUND || "replybot";
+  const { text, blocks } = formatOutboundReply({
+    leadName: prospectName,
+    companyName,
+    campaignName: payload.campaignName || "Unknown Campaign",
+    originalReply: replyText,
+    draftedResponse,
+    smartleadUrl: `https://app.lemlist.com/campaigns/${payload.campaignId || ""}`,
+    conversationId: convId,
+  });
+
+  const slackResult = await postMessage({
+    channel: slackChannel,
+    text,
+    blocks,
+  });
+
+  // 8. Store Slack message reference
+  await writeQuery(
+    `UPDATE conversations SET slack_message_ts = $1, slack_channel = $2 WHERE id = $3`,
+    [slackResult.ts, slackResult.channel, convId]
+  );
+
+  // 9. Log routing action
+  await writeQuery(
+    `INSERT INTO routing_log (lead_id, action, details, created_at) VALUES ($1, $2, $3, NOW())`,
+    [
+      leadId,
+      "lemlist_reply_received",
+      JSON.stringify({
+        conversation_id: convId,
+        template: template.name,
+        campaign_id: payload.campaignId,
+        rep: repName,
+      }),
+    ]
+  );
+
+  console.log("[lemlist/webhook] Posted to Slack, conversation:", convId);
+  return { ok: true, conversation_id: convId };
+}
