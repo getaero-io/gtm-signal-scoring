@@ -1,0 +1,28 @@
+# Customer references and social proof for the LLM to draw from.
+# Used to add credibility and specificity to reply drafts.
+
+references:
+  - name: "Overall Track Record"
+    type: "stat"
+    content: "$345M+ deployed to emerging CPG brands"
+    when_to_use: "Default credibility statement — use in most replies"
+
+  - name: "Retailer Coverage"
+    type: "stat"
+    content: "Funded POs at Costco, Walmart, Target, Kroger, Whole Foods, Sprouts, HEB, and 20+ other retailers"
+    when_to_use: "When prospect mentions a specific retailer — confirm we've funded POs there"
+
+  - name: "Speed"
+    type: "stat"
+    content: "Average time from application to funding: 5 business days"
+    when_to_use: "When prospect mentions urgency or tight timelines"
+
+  - name: "Brand Stage"
+    type: "stat"
+    content: "Most clients have 0-4 retail partners when they start with Spring Cash"
+    when_to_use: "When prospect feels they might be too small or too early"
+
+  - name: "Repeat Rate"
+    type: "stat"
+    content: "85%+ of brands come back for additional PO funding after their first"
+    when_to_use: "When building trust — shows satisfaction, not just one-time use"

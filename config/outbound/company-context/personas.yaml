@@ -1,0 +1,81 @@
+# Target buyer personas for Spring Cash outreach.
+# Used by the LLM to tailor reply tone and content to the recipient's role.
+
+personas:
+  - name: "Founder / CEO"
+    titles:
+      - "Founder"
+      - "Co-Founder"
+      - "CEO"
+      - "Owner"
+      - "President"
+    pain_points:
+      - "Cash flow gaps between receiving a PO and getting paid by the retailer (60-90 day terms)"
+      - "Turning down retail opportunities because they can't fund the inventory"
+      - "Diluting equity to fund working capital"
+      - "Personal guarantees on bank loans to fund purchase orders"
+    motivations:
+      - "Grow retail distribution without giving up equity"
+      - "Say yes to every PO from a major retailer"
+      - "Focus on product and brand instead of chasing capital"
+    messaging_angle: >
+      Speak peer-to-peer. Acknowledge the founder journey. Lead with the
+      specific retailer opportunity they mentioned. Position Spring Cash
+      as a growth partner, not a lender.
+
+  - name: "VP/Director of Sales"
+    titles:
+      - "VP Sales"
+      - "VP of Sales"
+      - "Director of Sales"
+      - "Head of Sales"
+      - "Chief Revenue Officer"
+      - "CRO"
+    pain_points:
+      - "Pipeline stalls when ops can't fulfill the POs they close"
+      - "Retailer buyers lose patience when delivery timelines slip"
+      - "Commission tied to fulfilled orders, not just closed deals"
+    motivations:
+      - "Never lose a deal because of cash flow"
+      - "Faster fulfillment = happier retail buyers = more reorders"
+    messaging_angle: >
+      Lead with revenue impact. Frame Spring Cash as the thing that
+      removes the bottleneck between closed deal and fulfilled order.
+
+  - name: "VP/Director of Finance"
+    titles:
+      - "VP Finance"
+      - "CFO"
+      - "Director of Finance"
+      - "Controller"
+      - "Head of Finance"
+    pain_points:
+      - "Managing cash flow across multiple retailer payment cycles"
+      - "Retailer payment terms (Net 60-90) create working capital gaps"
+      - "Traditional bank financing is too slow or requires too much collateral"
+    motivations:
+      - "Non-dilutive capital that matches the PO cycle"
+      - "Predictable cost of capital tied to specific POs"
+      - "Clean balance sheet — PO financing, not debt"
+    messaging_angle: >
+      Lead with financial mechanics. Speak their language: terms,
+      cost of capital, balance sheet impact. Position as PO-specific
+      financing, not a line of credit.
+
+  - name: "Operations / Supply Chain"
+    titles:
+      - "VP Operations"
+      - "COO"
+      - "Director of Operations"
+      - "Supply Chain Manager"
+      - "Head of Supply Chain"
+    pain_points:
+      - "Can't place manufacturing orders without capital"
+      - "Lead times mean they need to commit capital months before retailer pays"
+      - "Scaling production for a new retailer is capital-intensive"
+    motivations:
+      - "Fund production runs without waiting for retailer payment"
+      - "Meet delivery windows without scrambling for capital"
+    messaging_angle: >
+      Lead with operational reliability. Frame Spring Cash as the
+      bridge between PO receipt and production funding.

@@ -1,0 +1,36 @@
+# Specific proof points and case-study-style evidence.
+# Used by the LLM to add concrete examples to replies when relevant.
+
+proof_points:
+  - name: "Costco Success"
+    category: "retailer_specific"
+    retailer: "Costco"
+    summary: >
+      Multiple brands have used Spring Cash to fund their first Costco
+      POs, ranging from $200K to $2M+. Costco's Net 90 terms make
+      working capital critical for emerging brands.
+    quotable_result: "Funded 50+ first-time Costco POs for emerging brands"
+
+  - name: "Speed to Capital"
+    category: "process"
+    summary: >
+      Spring Cash's underwriting focuses on the retailer's creditworthiness
+      (Costco, Walmart, etc.), not the brand's financials. This means
+      faster decisions and simpler paperwork than traditional lending.
+    quotable_result: "Approved and funded in as few as 5 business days"
+
+  - name: "Non-Dilutive Growth"
+    category: "financial"
+    summary: >
+      Brands using Spring Cash avoid raising equity rounds just to fund
+      working capital. The capital is tied to specific POs and repaid
+      when the retailer pays — it's not debt on the balance sheet.
+    quotable_result: "Helped brands grow retail 3x without diluting equity"
+
+  - name: "Emerging Brand Focus"
+    category: "positioning"
+    summary: >
+      Unlike banks that require years of financials and collateral,
+      Spring Cash was built for early-stage CPG brands. First PO?
+      No problem — that's our specialty.
+    quotable_result: "Purpose-built for brands with 0-4 retail partners"
