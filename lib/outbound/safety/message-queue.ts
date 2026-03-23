@@ -28,9 +28,13 @@ function getQStashClient(): Client {
 }
 
 function getSendReplyUrl(): string {
-  const base = process.env.NEXT_PUBLIC_BASE_URL
-    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
-    || "http://localhost:3000";
+  const base =
+    process.env.NEXT_PUBLIC_BASE_URL ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : null) ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+    "http://localhost:3000";
   return `${base}/api/send-reply`;
 }
 
@@ -83,21 +87,35 @@ export async function queueMessage(opts: {
   const queueId = rows[0].id;
 
   // 2. Publish to QStash with delay
-  const qstash = getQStashClient();
-  const result = await qstash.publishJSON({
-    url: getSendReplyUrl(),
-    body: {
-      queueId,
-      conversationId: opts.conversationId,
-      leadId: opts.leadId,
-      campaignId: String(opts.metadata?.campaign_id || ""),
-      channel,
-      provider,
-      messageText: opts.messageText,
-      metadata: opts.metadata || {},
-    },
-    delay,
-  });
+  let result: { messageId: string };
+  try {
+    const qstash = getQStashClient();
+    result = await qstash.publishJSON({
+      url: getSendReplyUrl(),
+      body: {
+        queueId,
+        conversationId: opts.conversationId,
+        leadId: opts.leadId,
+        campaignId: String(opts.metadata?.campaign_id || ""),
+        channel,
+        provider,
+        messageText: opts.messageText,
+        metadata: opts.metadata || {},
+      },
+      delay,
+    });
+  } catch (err) {
+    // QStash publish failed — clean up the orphaned DB row
+    console.error(
+      `[message-queue] QStash publish failed for queue=${queueId}, cleaning up:`,
+      (err as Error).message
+    );
+    await writeQuery(
+      `UPDATE inbound.message_queue SET status = 'failed', error_message = $1 WHERE id = $2`,
+      [`QStash publish failed: ${(err as Error).message}`.slice(0, 500), queueId]
+    );
+    throw err;
+  }
 
   // 3. Store QStash message ID for cancellation
   await writeQuery(
@@ -149,6 +167,22 @@ export async function cancelMessage(
   );
 
   return updated.length > 0;
+}
+
+/**
+ * Atomically claim a queued message for sending (queued → sending).
+ * Returns true if the row was successfully claimed, false if it was
+ * already cancelled, sent, or claimed by another process.
+ * Also accepts 'sending' status to allow QStash retries.
+ */
+export async function claimForSending(queueId: number): Promise<boolean> {
+  const rows = await writeQuery<{ id: number }>(
+    `UPDATE inbound.message_queue SET status = 'sending'
+     WHERE id = $1 AND status IN ('queued', 'sending')
+     RETURNING id`,
+    [queueId]
+  );
+  return rows.length > 0;
 }
 
 /**
