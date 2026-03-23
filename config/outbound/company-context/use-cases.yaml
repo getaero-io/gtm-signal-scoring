@@ -1,0 +1,55 @@
+# Specific use cases / scenarios where Spring Cash creates value.
+# Used by the LLM to match the prospect's situation to a relevant story.
+
+use_cases:
+  - name: "first_costco_po"
+    title: "First Costco Purchase Order"
+    scenario: >
+      An emerging CPG brand gets their first Costco PO. The order is
+      $500K+ but Costco pays Net 90. The brand doesn't have $500K in
+      cash to fund production, packaging, and shipping.
+    spring_cash_role: >
+      Spring Cash funds the production run against the Costco PO.
+      The brand manufactures, ships, and delivers. When Costco pays,
+      Spring Cash is repaid. The brand keeps the margin.
+    ideal_for: ["Founder / CEO", "VP/Director of Finance"]
+    keywords: ["costco", "first order", "purchase order", "can't fund"]
+
+  - name: "scaling_retail_distribution"
+    title: "Scaling from 1 Retailer to 5+"
+    scenario: >
+      A brand is in Whole Foods and just got accepted into Target and
+      Kroger. Each new retailer means a new production run, new packaging
+      SKUs, and new logistics — all before the first payment arrives.
+    spring_cash_role: >
+      Spring Cash provides working capital for each new retailer launch,
+      allowing the brand to scale distribution without depleting cash
+      reserves or raising equity.
+    ideal_for: ["Founder / CEO", "VP/Director of Sales"]
+    keywords: ["scaling", "multiple retailers", "new retailer", "expansion"]
+
+  - name: "seasonal_surge"
+    title: "Seasonal Demand Surge"
+    scenario: >
+      A snack brand gets a massive holiday PO from Walmart — 3x their
+      normal order. They need to fund a larger production run but their
+      existing cash can only cover normal volume.
+    spring_cash_role: >
+      Spring Cash funds the incremental production for the seasonal
+      surge. The brand captures the full holiday opportunity without
+      turning down volume.
+    ideal_for: ["Operations / Supply Chain", "VP/Director of Finance"]
+    keywords: ["seasonal", "holiday", "surge", "volume", "capacity"]
+
+  - name: "new_product_launch"
+    title: "New Product Line Launch at Retail"
+    scenario: >
+      A brand with an existing retail presence launches a new product
+      line. The retailer wants it in all stores, but the brand needs
+      capital for the initial production run of the new SKU.
+    spring_cash_role: >
+      Spring Cash funds the new product launch production. The brand
+      expands their shelf space without cannibalizing cash from their
+      existing product lines.
+    ideal_for: ["Founder / CEO", "VP/Director of Sales"]
+    keywords: ["new product", "launch", "new SKU", "product line"]

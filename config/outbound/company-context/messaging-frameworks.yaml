@@ -1,0 +1,77 @@
+# Core messaging frameworks for Spring Cash outbound.
+# Used by the LLM to maintain consistent positioning across all replies.
+
+company:
+  name: "Spring Cash"
+  tagline: "Working capital for emerging CPG brands"
+  elevator_pitch: >
+    Spring Cash provides working capital for emerging consumer packaged goods
+    brands that need to fulfill their first purchase orders at major retailers
+    like Costco, Walmart, and Target. We've deployed $345M+ to help brands
+    bridge the gap between receiving a PO and getting paid.
+
+value_propositions:
+  - key: "bridge_the_gap"
+    headline: "Bridge the gap between PO and payment"
+    detail: >
+      Major retailers pay on Net 60-90 terms. You need capital NOW to
+      manufacture and ship. Spring Cash funds the gap so you never
+      turn down a purchase order.
+    when_to_use: "Default value prop — works for all personas"
+
+  - key: "non_dilutive"
+    headline: "Grow without giving up equity"
+    detail: >
+      Unlike venture capital or equity financing, Spring Cash provides
+      PO-specific working capital. You keep 100% of your equity while
+      funding retail growth.
+    when_to_use: "When prospect mentions fundraising, equity, or investors"
+
+  - key: "say_yes_to_every_po"
+    headline: "Say yes to every purchase order"
+    detail: >
+      Don't turn down Costco because you can't fund the production run.
+      Spring Cash lets you say yes to every PO from every major retailer.
+    when_to_use: "When prospect mentions specific retailer opportunities"
+
+  - key: "speed"
+    headline: "Capital in days, not months"
+    detail: >
+      Traditional bank financing takes weeks of paperwork. Spring Cash
+      can fund a PO in days because we underwrite the retailer's
+      creditworthiness, not yours.
+    when_to_use: "When prospect mentions urgency, tight timelines, or bank frustration"
+
+objection_handling:
+  - objection: "We already have a line of credit"
+    response_framework: >
+      Acknowledge their existing financing. Position Spring Cash as
+      complementary — a LOC has limits and covenants; PO financing
+      is additive capacity tied to specific orders.
+
+  - objection: "We're not ready for retail yet"
+    response_framework: >
+      Validate their timeline. Ask what retailers they're targeting.
+      Offer to be a resource when they're ready. Plant the seed that
+      having capital lined up before the PO comes makes the process smoother.
+
+  - objection: "What does it cost?"
+    response_framework: >
+      Be transparent about the general model (factoring-style fee on the PO).
+      Avoid specific rates in writing — steer to a call where the team
+      can give a tailored quote based on their retailer and PO size.
+
+  - objection: "We're too small"
+    response_framework: >
+      Spring Cash specializes in emerging brands. Mention that most
+      clients are early-stage (0-4 retail partners). First PO funding
+      is exactly what we do.
+
+tone_guidelines:
+  - "Conversational and founder-friendly — never corporate-speak"
+  - "Confident but not arrogant — we know our space, but we listen"
+  - "Specific over generic — reference their company, product, or retailer"
+  - "Brief — 3-5 sentences for replies, never a wall of text"
+  - "One CTA max — propose a call OR ask a question, not both"
+  - "No exclamation marks epidemic — 1 max per message"
+  - "Sign off with first name only"

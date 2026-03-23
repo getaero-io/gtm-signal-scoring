@@ -1,0 +1,67 @@
+# Qualification Rules
+# Define how inbound signals are filtered, analyzed, and scored against ICPs.
+
+rules:
+  - name: "costco_cpg_qualifier"
+    description: >
+      Qualifies CPG brands found in Costco retailer data. These leads come from
+      retailer shelf scans or distributor lists and represent brands that already
+      have or are seeking placement at Costco — a high-value signal for Spring Cash.
+    initial_filters:
+      - field: "retailers_list"
+        operator: "contains"
+        value: "Costco"
+      - field: "is_cpg"
+        operator: "equals"
+        value: true
+    website_analysis:
+      enabled: true
+      prompt: >
+        Analyze this company's website and determine the following about the brand.
+        Be concise and factual. If you cannot determine a field, say "unknown".
+
+        1. product_description: What products does this company sell? Summarize in 1-2 sentences.
+        2. is_cpg: Is this a consumer packaged goods brand (food, beverage, health, beauty, household, pet)? Answer true/false.
+        3. stage: What stage is this company? One of: pre-revenue, early (< $5M rev), growth ($5-50M), scale ($50M+), unknown.
+        4. sells_retail: Does this company sell through retail stores (not just DTC/ecommerce)? Answer true/false.
+        5. company_size: Estimate employee count. One of: 1-10, 11-50, 51-200, 200+, unknown.
+        6. fit_summary: In 1-2 sentences, explain why this brand would or would not be a good fit
+           for a working capital provider that helps emerging CPG brands fulfill their first
+           purchase orders at major retailers like Costco, Walmart, and Target.
+      extract_fields:
+        - "product_description"
+        - "is_cpg"
+        - "stage"
+        - "sells_retail"
+        - "company_size"
+        - "fit_summary"
+    icp_ref: "spring_cash"
+
+  - name: "linkedin_signal_qualifier"
+    description: >
+      Qualifies leads sourced from LinkedIn engagement signals — profile views,
+      post reactions, connection requests, or InMail replies. These signals indicate
+      intent or awareness and are routed through website analysis for ICP scoring.
+    initial_filters:
+      - field: "source"
+        operator: "equals"
+        value: "linkedin_signal"
+    website_analysis:
+      enabled: true
+      prompt: >
+        Analyze this company's website. Determine:
+
+        1. product_description: What does this company sell? 1-2 sentences.
+        2. is_cpg: Is this a consumer packaged goods brand? Answer true/false.
+        3. stage: Company stage — pre-revenue, early, growth, scale, or unknown.
+        4. sells_retail: Does this company sell through retail stores? Answer true/false.
+        5. company_size: Estimated employee count — 1-10, 11-50, 51-200, 200+, or unknown.
+        6. fit_summary: 1-2 sentence assessment of fit for an emerging CPG working capital provider.
+      extract_fields:
+        - "product_description"
+        - "is_cpg"
+        - "stage"
+        - "sells_retail"
+        - "company_size"
+        - "fit_summary"
+    icp_ref: "spring_cash"
