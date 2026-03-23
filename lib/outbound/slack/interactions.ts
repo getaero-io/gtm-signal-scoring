@@ -48,6 +48,7 @@ interface SlackInteractionPayload {
 interface Conversation {
   id: number;
   lead_id: number;
+  channel: string;
   original_message: string;
   drafted_response: string;
   final_response: string | null;
@@ -105,7 +106,7 @@ async function handleApprove(
   messageTs: string
 ): Promise<void> {
   const conv = await queryOne<Conversation>(
-    `SELECT id, lead_id, original_message, drafted_response, final_response, status, slack_message_ts, slack_channel, metadata
+    `SELECT id, lead_id, channel, original_message, drafted_response, final_response, status, slack_message_ts, slack_channel, metadata
      FROM inbound.conversations WHERE id = $1`,
     [conversationId]
   );
@@ -152,13 +153,14 @@ async function handleApprove(
       const queued = await queueMessage({
         conversationId,
         leadId: String(conv.lead_id),
-        channel: 'lemlist',
+        channel: conv.channel || 'lemlist',
         messageText: responseText,
         metadata: {
           lemlist_lead_id: lemlistLeadId,
           smartlead_lead_id: smartleadLeadId,
           campaign_id: campaignId,
           approved_by: userName,
+          reply_channel: conv.channel,
         },
       });
       queueId = queued.queueId;
