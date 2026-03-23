@@ -12,8 +12,9 @@ export interface OutboundReplyMessage {
   campaignName: string;
   originalReply: string;
   draftedResponse: string;
-  smartleadUrl: string;
+  campaignUrl: string;
   conversationId: number;
+  provider?: string;
 }
 
 export interface QualifiedLeadMessage {
@@ -115,7 +116,7 @@ export function formatOutboundReply(data: OutboundReplyMessage): {
       elements: [
         {
           type: "mrkdwn",
-          text: `<${data.smartleadUrl}|View in SmartLead> | Conversation ID: ${data.conversationId}`,
+          text: `<${data.campaignUrl}|View Campaign> | Conversation ID: ${data.conversationId}${data.provider ? ` | Provider: ${data.provider}` : ""}`,
         },
       ],
     },

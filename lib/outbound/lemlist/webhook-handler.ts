@@ -104,6 +104,7 @@ export async function handleLemlistWebhook(
         payload.email || null,
         companyName,
         JSON.stringify({
+          provider: "lemlist",
           lemlist_lead_id: payload.leadId,
           lemlist_campaign_id: payload.campaignId,
         }),
@@ -157,6 +158,7 @@ export async function handleLemlistWebhook(
       replyText,
       draftedResponse,
       JSON.stringify({
+        provider: "lemlist",
         lemlist_lead_id: payload.leadId,
         campaign_id: payload.campaignId,
         campaign_name: payload.campaignName,
@@ -175,7 +177,8 @@ export async function handleLemlistWebhook(
     campaignName: payload.campaignName || "Unknown Campaign",
     originalReply: replyText,
     draftedResponse,
-    smartleadUrl: `https://app.lemlist.com/campaigns/${payload.campaignId || ""}`,
+    campaignUrl: `https://app.lemlist.com/campaigns/${payload.campaignId || ""}`,
+    provider: "lemlist",
     conversationId: convId,
   });
 

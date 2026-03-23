@@ -12,6 +12,7 @@
     "@ai-sdk/anthropic": "^3.0.58",
     "@slack/web-api": "^7.15.0",
     "@trigger.dev/sdk": "^4.4.3",
+    "@upstash/qstash": "^2.10.1",
     "@xyflow/react": "^12.10.1",
     "ai": "^6.0.116",
     "exa-js": "^2.8.0",
