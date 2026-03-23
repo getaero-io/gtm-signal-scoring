@@ -6,6 +6,7 @@ import { postMessage } from "../slack/client";
 import { formatQualifiedLead } from "../slack/messages";
 import { upsertAttioPerson } from "../integrations/attio";
 import { addToNurtureCampaign } from "../integrations/smartlead";
+import { upsertHubSpotContact } from "../integrations/hubspot";
 
 async function queryOne<T>(sql: string, params?: any[]): Promise<T | null> {
   const rows = await query<T>(sql, params);
@@ -150,15 +151,29 @@ async function routeQualified(
     attioId = attioResult.recordId;
   }
 
-  // 6. Store attio_id on lead
-  if (attioId && attioId !== lead.attio_id) {
-    await writeQuery(`UPDATE inbound.leads SET attio_id = $1, updated_at = NOW() WHERE id = $2`, [
-      attioId,
-      lead.id,
-    ]);
+  // 6. Upsert contact in HubSpot (non-blocking)
+  let hubspotId: string | null = null;
+  if (lead.email) {
+    const hsResult = await upsertHubSpotContact({
+      email: lead.email,
+      firstName: lead.first_name || undefined,
+      lastName: lead.last_name || undefined,
+      company: lead.company_name || undefined,
+      jobTitle: lead.title || undefined,
+      leadStatus: 'OPEN',
+      qualificationScore: qualResult.score,
+      source: 'gtm-signal-scoring',
+    });
+    hubspotId = hsResult?.contactId ?? null;
   }
 
-  // 7. Log to routing_log
+  // 7. Store attio_id and hubspot_id on lead
+  await writeQuery(
+    `UPDATE inbound.leads SET attio_id = COALESCE($1, attio_id), hubspot_id = COALESCE($2, hubspot_id), updated_at = NOW() WHERE id = $3`,
+    [attioId !== lead.attio_id ? attioId : null, hubspotId, lead.id]
+  );
+
+  // 8. Log to routing_log
   await logRouting(lead.id, "qualified_to_rep", {
     rep: rep.name,
     rep_slack_id: rep.slack_id,
@@ -166,6 +181,7 @@ async function routeQualified(
     slack_ts: slackResult.ts,
     qualification_score: qualResult.score,
     attio_id: attioId,
+    hubspot_id: hubspotId,
   });
 }
 
@@ -213,18 +229,35 @@ async function routeNurture(
     attioId = attioResult.recordId;
   }
 
-  // 4. Store attio_id and campaign_id on lead
+  // 4. Upsert contact in HubSpot (non-blocking)
+  let hubspotId: string | null = null;
+  if (lead.email) {
+    const hsResult = await upsertHubSpotContact({
+      email: lead.email,
+      firstName: lead.first_name || undefined,
+      lastName: lead.last_name || undefined,
+      company: lead.company_name || undefined,
+      jobTitle: lead.title || undefined,
+      leadStatus: 'ATTEMPTED_TO_CONTACT',
+      qualificationScore: qualResult.score,
+      source: 'gtm-signal-scoring',
+    });
+    hubspotId = hsResult?.contactId ?? null;
+  }
+
+  // 5. Store attio_id, hubspot_id, and campaign_id on lead
   await writeQuery(
-    `UPDATE inbound.leads SET attio_id = COALESCE($1, attio_id), campaign_id = COALESCE($2, campaign_id), status = 'nurture', updated_at = NOW() WHERE id = $3`,
-    [attioId, campaignId, lead.id]
+    `UPDATE inbound.leads SET attio_id = COALESCE($1, attio_id), hubspot_id = COALESCE($2, hubspot_id), campaign_id = COALESCE($3, campaign_id), status = 'nurture', updated_at = NOW() WHERE id = $4`,
+    [attioId, hubspotId, campaignId, lead.id]
   );
 
-  // 5. Log to routing_log
+  // 6. Log to routing_log
   await logRouting(lead.id, "nurture_to_campaign", {
     campaign_slug: campaignSlug,
     campaign_id: campaignId,
     qualification_score: qualResult.score,
     attio_id: attioId,
+    hubspot_id: hubspotId,
     has_email: !!lead.email,
   });
 }

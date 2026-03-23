@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifySlackSignature } from '@/lib/outbound/slack/interactions';
+import { logWebhookEvent } from '@/lib/outbound/safety/webhook-logger';
 
 export async function POST(req: NextRequest) {
   // Read raw body first for signature verification
@@ -19,10 +20,18 @@ export async function POST(req: NextRequest) {
 
   const event = JSON.parse(rawBody);
 
-  // Handle Slack URL verification challenge
+  // Handle Slack URL verification challenge (don't log these)
   if (event && event.type === "url_verification") {
     return NextResponse.json({ challenge: event.challenge });
   }
+
+  // Log every Slack event to DB for observability
+  logWebhookEvent({
+    source: 'slack_event',
+    eventType: event?.event?.type || event?.type || 'unknown',
+    rawPayload: event,
+    status: 'processed',
+  }).catch((err) => console.error('[slack/events] Failed to log event:', err));
 
   return NextResponse.json({ ok: true });
 }

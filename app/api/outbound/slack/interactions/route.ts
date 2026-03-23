@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handleInteraction, verifySlackSignature } from '@/lib/outbound/slack/interactions';
+import { logWebhookEvent, updateWebhookEvent } from '@/lib/outbound/safety/webhook-logger';
 
 export async function POST(req: NextRequest) {
   // Read raw body first for signature verification
@@ -21,27 +22,39 @@ export async function POST(req: NextRequest) {
   const params = new URLSearchParams(rawBody);
   const payloadStr = params.get('payload');
 
+  let payload: any;
   if (!payloadStr) {
-    // Try parsing as JSON fallback
     try {
       const body = JSON.parse(rawBody);
       if (body?.payload) {
-        const payload = typeof body.payload === 'string' ? JSON.parse(body.payload) : body.payload;
-        // Fire and forget - Slack needs response within 3s
-        handleInteraction(payload).catch(err =>
-          console.error("[slack/interactions] Error:", err)
-        );
-        return NextResponse.json({ ok: true });
+        payload = typeof body.payload === 'string' ? JSON.parse(body.payload) : body.payload;
       }
     } catch {}
-    return NextResponse.json({ error: "missing payload" }, { status: 400 });
+    if (!payload) {
+      return NextResponse.json({ error: "missing payload" }, { status: 400 });
+    }
+  } else {
+    payload = JSON.parse(payloadStr);
   }
 
-  // Ack immediately, process async
-  const payload = JSON.parse(payloadStr);
-  handleInteraction(payload).catch(err =>
-    console.error("[slack/interactions] Error:", err)
-  );
+  // Log raw Slack interaction to DB
+  const actionIds = (payload.actions || []).map((a: any) => a.action_id).join(',');
+  const eventId = await logWebhookEvent({
+    source: 'slack_interaction',
+    eventType: actionIds || payload.type || 'unknown',
+    rawPayload: payload,
+  });
+
+  // Ack immediately, process async (Slack needs response within 3s)
+  handleInteraction(payload)
+    .then(() => updateWebhookEvent(eventId, { status: 'processed' }))
+    .catch(async (err) => {
+      console.error("[slack/interactions] Error:", err);
+      await updateWebhookEvent(eventId, {
+        status: 'failed',
+        errorMessage: (err as Error).message,
+      }).catch(() => {});
+    });
 
   return NextResponse.json({ ok: true });
 }
