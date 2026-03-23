@@ -15,6 +15,7 @@ import { writeQuery } from "@/lib/db-write";
 import { updateMessage, postThreadReply } from "./client";
 import { sendSmartLeadReply } from "../integrations/smartlead";
 import { upsertAttioPerson } from "../integrations/attio";
+import { upsertHubSpotContact } from "../integrations/hubspot";
 import { queueMessage, cancelMessage } from "../safety/message-queue";
 import { enforceRateLimit, RateLimitError } from "../safety/rate-limiter";
 import crypto from "crypto";
@@ -191,6 +192,18 @@ async function handleApprove(
     }).catch((err) =>
       console.error("[interactions] Attio upsert failed (non-fatal):", err)
     );
+
+    // Sync to HubSpot (non-blocking)
+    upsertHubSpotContact({
+      email: lead.email,
+      firstName: lead.first_name || undefined,
+      lastName: lead.last_name || undefined,
+      jobTitle: lead.title || undefined,
+      leadStatus: 'IN_PROGRESS',
+      source: 'gtm-signal-scoring',
+    }).catch((err) =>
+      console.error("[interactions] HubSpot upsert failed (non-fatal):", err)
+    );
   }
 
   // 3. Mark conversation as approved (queued for send)
@@ -321,15 +334,32 @@ async function handleReject(
 async function handleEdit(
   conversationId: number,
   userId: string,
+  userName: string,
   channel: string,
   messageTs: string
 ): Promise<void> {
   const conv = await queryOne<Conversation>(
-    `SELECT id, status, drafted_response FROM inbound.conversations WHERE id = $1`,
+    `SELECT id, status, drafted_response, lead_id FROM inbound.conversations WHERE id = $1`,
     [conversationId]
   );
 
   if (!conv || conv.status !== "pending") return;
+
+  // Mark conversation as editing
+  await writeQuery(
+    `UPDATE inbound.conversations SET status = 'editing', approved_by = $1, updated_at = NOW() WHERE id = $2`,
+    [userName, conversationId]
+  );
+
+  // Log to routing_log
+  await writeQuery(
+    `INSERT INTO inbound.routing_log (lead_id, action, details, created_at) VALUES ($1, $2, $3, NOW())`,
+    [
+      conv.lead_id,
+      "outbound_reply_editing",
+      JSON.stringify({ conversation_id: conversationId, edited_by: userName }),
+    ]
+  );
 
   // Post a thread reply prompting the user to edit
   await postThreadReply({
@@ -465,7 +495,7 @@ export async function handleInteraction(
         } else if (action.action_id === "reject_response") {
           await handleReject(conversationId, userId, userName, channel, messageTs);
         } else {
-          await handleEdit(conversationId, userId, channel, messageTs);
+          await handleEdit(conversationId, userId, userName, channel, messageTs);
         }
         break;
       }
