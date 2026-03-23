@@ -159,7 +159,7 @@ export async function qualifyLead(
 
   // 1. Fetch lead from DB
   const lead = await queryOne<Record<string, unknown>>(
-    "SELECT * FROM leads WHERE id = $1",
+    "SELECT * FROM inbound.leads WHERE id = $1",
     [leadId]
   );
 
@@ -168,7 +168,7 @@ export async function qualifyLead(
   }
 
   // 2. Set status to 'qualifying'
-  await writeQuery("UPDATE leads SET status = $1 WHERE id = $2", [
+  await writeQuery("UPDATE inbound.leads SET status = $1 WHERE id = $2", [
     "qualifying",
     leadId,
   ]);
@@ -180,7 +180,7 @@ export async function qualifyLead(
 
   if (!matchedRule) {
     // No rule matched — mark as nurture with reason
-    await writeQuery("UPDATE leads SET status = $1 WHERE id = $2", [
+    await writeQuery("UPDATE inbound.leads SET status = $1 WHERE id = $2", [
       "nurture",
       leadId,
     ]);
@@ -236,7 +236,7 @@ export async function qualifyLead(
 
   // 7. Store result in qualification_results table
   await writeQuery(
-    `INSERT INTO qualification_results
+    `INSERT INTO inbound.qualification_results
        (lead_id, rule_name, icp_ref, score, breakdown, flags, qualified, reason, created_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
     [
@@ -253,7 +253,7 @@ export async function qualifyLead(
 
   // 8. Update lead status
   await writeQuery(
-    "UPDATE leads SET status = $1, qualification_score = $2 WHERE id = $3",
+    "UPDATE inbound.leads SET status = $1, qualification_score = $2 WHERE id = $3",
     [status, scoreResult.total, leadId]
   );
 

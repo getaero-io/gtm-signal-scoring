@@ -103,7 +103,7 @@ async function handleApprove(
 ): Promise<void> {
   const conv = await queryOne<Conversation>(
     `SELECT id, lead_id, original_message, drafted_response, final_response, status, slack_message_ts, slack_channel, metadata
-     FROM conversations WHERE id = $1`,
+     FROM inbound.conversations WHERE id = $1`,
     [conversationId]
   );
 
@@ -147,7 +147,7 @@ async function handleApprove(
 
   // 2. Update Attio (non-blocking — don't fail the approval if Attio is down)
   const lead = await queryOne<Lead>(
-    `SELECT id, email, first_name, last_name, company_domain, title FROM leads WHERE id = $1`,
+    `SELECT id, email, first_name, last_name, company_domain, title FROM inbound.leads WHERE id = $1`,
     [conv.lead_id]
   );
 
@@ -168,7 +168,7 @@ async function handleApprove(
 
   // 3. Mark conversation as approved
   await writeQuery(
-    `UPDATE conversations
+    `UPDATE inbound.conversations
      SET status = 'approved', final_response = $1, approved_by = $2, sent_at = NOW(), updated_at = NOW()
      WHERE id = $3`,
     [responseText, userName, conversationId]
@@ -201,7 +201,7 @@ async function handleApprove(
 
   // 5. Log routing action
   await writeQuery(
-    `INSERT INTO routing_log (lead_id, action, details, created_at) VALUES ($1, $2, $3, NOW())`,
+    `INSERT INTO inbound.routing_log (lead_id, action, details, created_at) VALUES ($1, $2, $3, NOW())`,
     [
       conv.lead_id,
       "outbound_reply_approved",
@@ -222,7 +222,7 @@ async function handleReject(
   messageTs: string
 ): Promise<void> {
   const conv = await queryOne<Conversation>(
-    `SELECT id, status, original_message, drafted_response, lead_id FROM conversations WHERE id = $1`,
+    `SELECT id, status, original_message, drafted_response, lead_id FROM inbound.conversations WHERE id = $1`,
     [conversationId]
   );
 
@@ -238,7 +238,7 @@ async function handleReject(
   }
 
   await writeQuery(
-    `UPDATE conversations SET status = 'rejected', approved_by = $1, updated_at = NOW() WHERE id = $2`,
+    `UPDATE inbound.conversations SET status = 'rejected', approved_by = $1, updated_at = NOW() WHERE id = $2`,
     [userName, conversationId]
   );
 
@@ -267,7 +267,7 @@ async function handleReject(
   });
 
   await writeQuery(
-    `INSERT INTO routing_log (lead_id, action, details, created_at) VALUES ($1, $2, $3, NOW())`,
+    `INSERT INTO inbound.routing_log (lead_id, action, details, created_at) VALUES ($1, $2, $3, NOW())`,
     [
       conv.lead_id,
       "outbound_reply_rejected",
@@ -283,7 +283,7 @@ async function handleEdit(
   messageTs: string
 ): Promise<void> {
   const conv = await queryOne<Conversation>(
-    `SELECT id, status, drafted_response FROM conversations WHERE id = $1`,
+    `SELECT id, status, drafted_response FROM inbound.conversations WHERE id = $1`,
     [conversationId]
   );
 

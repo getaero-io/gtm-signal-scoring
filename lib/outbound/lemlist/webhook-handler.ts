@@ -55,7 +55,7 @@ export async function handleLemlistWebhook(
   // 1. Upsert lead in DB
   const existingLead = payload.email
     ? await queryOne<{ id: string }>(
-        `SELECT id FROM leads WHERE email = $1`,
+        `SELECT id FROM inbound.leads WHERE email = $1`,
         [payload.email]
       )
     : null;
@@ -64,7 +64,7 @@ export async function handleLemlistWebhook(
   if (existingLead) {
     leadId = existingLead.id;
     await writeQuery(
-      `UPDATE leads SET
+      `UPDATE inbound.leads SET
         first_name = COALESCE($1, first_name),
         last_name = COALESCE($2, last_name),
         company_name = COALESCE($3, company_name),
@@ -81,7 +81,7 @@ export async function handleLemlistWebhook(
     );
   } else {
     const rows = await writeQuery<{ id: string }>(
-      `INSERT INTO leads (id, full_name, first_name, last_name, email, company, company_name, source, status, metadata)
+      `INSERT INTO inbound.leads (id, full_name, first_name, last_name, email, company, company_name, source, status, metadata)
        VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $5, 'lemlist', 'replied', $6)
        RETURNING id`,
       [
@@ -108,7 +108,7 @@ export async function handleLemlistWebhook(
     id: string;
     title: string | null;
     company_domain: string | null;
-  }>(`SELECT id, title, company_domain FROM leads WHERE id = $1`, [leadId]);
+  }>(`SELECT id, title, company_domain FROM inbound.leads WHERE id = $1`, [leadId]);
 
   // 4. Pick rep (simple random from config)
   const reps = config.routing.reps;
@@ -136,7 +136,7 @@ export async function handleLemlistWebhook(
 
   // 6. Create conversation record
   const convRows = await writeQuery<{ id: number }>(
-    `INSERT INTO conversations (lead_id, direction, channel, original_message, drafted_response, status, metadata)
+    `INSERT INTO inbound.conversations (lead_id, direction, channel, original_message, drafted_response, status, metadata)
      VALUES ($1, 'inbound', 'lemlist', $2, $3, 'pending', $4)
      RETURNING id`,
     [
@@ -174,13 +174,13 @@ export async function handleLemlistWebhook(
 
   // 8. Store Slack message reference
   await writeQuery(
-    `UPDATE conversations SET slack_message_ts = $1, slack_channel = $2 WHERE id = $3`,
+    `UPDATE inbound.conversations SET slack_message_ts = $1, slack_channel = $2 WHERE id = $3`,
     [slackResult.ts, slackResult.channel, convId]
   );
 
   // 9. Log routing action
   await writeQuery(
-    `INSERT INTO routing_log (lead_id, action, details, created_at) VALUES ($1, $2, $3, NOW())`,
+    `INSERT INTO inbound.routing_log (lead_id, action, details, created_at) VALUES ($1, $2, $3, NOW())`,
     [
       leadId,
       "lemlist_reply_received",

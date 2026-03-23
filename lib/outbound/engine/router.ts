@@ -87,7 +87,7 @@ async function logRouting(
   details: Record<string, unknown>
 ): Promise<void> {
   await writeQuery(
-    `INSERT INTO routing_log (lead_id, action, details) VALUES ($1, $2, $3)`,
+    `INSERT INTO inbound.routing_log (lead_id, action, details) VALUES ($1, $2, $3)`,
     [leadId, action, JSON.stringify(details)]
   );
 }
@@ -106,7 +106,7 @@ async function routeQualified(
 
   // 2. Update lead.assigned_rep and status in DB
   await writeQuery(
-    `UPDATE leads SET assigned_rep = $1, status = 'qualified', updated_at = NOW() WHERE id = $2`,
+    `UPDATE inbound.leads SET assigned_rep = $1, status = 'qualified', updated_at = NOW() WHERE id = $2`,
     [rep.name, lead.id]
   );
 
@@ -148,7 +148,7 @@ async function routeQualified(
 
   // 6. Store attio_id on lead
   if (attioId && attioId !== lead.attio_id) {
-    await writeQuery(`UPDATE leads SET attio_id = $1, updated_at = NOW() WHERE id = $2`, [
+    await writeQuery(`UPDATE inbound.leads SET attio_id = $1, updated_at = NOW() WHERE id = $2`, [
       attioId,
       lead.id,
     ]);
@@ -211,7 +211,7 @@ async function routeNurture(
 
   // 4. Store attio_id and campaign_id on lead
   await writeQuery(
-    `UPDATE leads SET attio_id = COALESCE($1, attio_id), campaign_id = COALESCE($2, campaign_id), status = 'nurture', updated_at = NOW() WHERE id = $3`,
+    `UPDATE inbound.leads SET attio_id = COALESCE($1, attio_id), campaign_id = COALESCE($2, campaign_id), status = 'nurture', updated_at = NOW() WHERE id = $3`,
     [attioId, campaignId, lead.id]
   );
 
@@ -233,7 +233,7 @@ export async function routeLead(leadId: number): Promise<void> {
   const config = loadConfig();
 
   const lead = await queryOne<Lead>(
-    `SELECT id, first_name, last_name, email, company_name, company_domain, title, status, assigned_rep, attio_id, campaign_id, metadata FROM leads WHERE id = $1`,
+    `SELECT id, first_name, last_name, email, company_name, company_domain, title, status, assigned_rep, attio_id, campaign_id, metadata FROM inbound.leads WHERE id = $1`,
     [leadId]
   );
 
@@ -242,7 +242,7 @@ export async function routeLead(leadId: number): Promise<void> {
   }
 
   const qualResult = await queryOne<QualificationResult>(
-    `SELECT id, lead_id, rule_set, website_summary, product_description, score, passed, score_breakdown, flags, llm_reasoning, created_at FROM qualification_results WHERE lead_id = $1 ORDER BY created_at DESC LIMIT 1`,
+    `SELECT id, lead_id, rule_set, website_summary, product_description, score, passed, score_breakdown, flags, llm_reasoning, created_at FROM inbound.qualification_results WHERE lead_id = $1 ORDER BY created_at DESC LIMIT 1`,
     [leadId]
   );
 
