@@ -36,7 +36,7 @@
 
 A standalone GTM engineering platform that turns your PostgreSQL database into a ranked account intelligence layer. Built for sales and revenue teams who want **signal-based prioritization**, **automated outbound reply handling**, and **lead qualification** — without relying on expensive all-in-one platforms.
 
-**Built with:** Next.js, PostgreSQL (Neon), [Deepline](https://deepline.com) enrichment, OpenAI, Slack, Lemlist, Attio CRM
+**Built with:** Next.js, PostgreSQL (Neon), [Deepline](https://deepline.com) enrichment, OpenAI, Slack, Lemlist/SmartLead/Instantly/HeyReach, Attio CRM, HubSpot
 
 ---
 
@@ -51,11 +51,12 @@ A standalone GTM engineering platform that turns your PostgreSQL database into a
 
 ### Outbound Reply Engine
 
-- Receives inbound replies via **Lemlist webhooks**
+- **Multi-provider**: Lemlist, SmartLead, Instantly, HeyReach — all routed through [Deepline](https://deepline.com) gateway
+- Receives inbound replies via **webhooks** (Lemlist) and **polling** (SmartLead/Instantly/HeyReach via Trigger.dev)
 - Drafts AI-powered responses using **OpenAI GPT-5-mini** with full company context
 - Posts to **Slack** for human review with Approve / Edit / Reject buttons
-- **Undo Send** — approved messages queue for 60 seconds before delivery
-- Round-robin lead routing to sales reps with **Attio CRM** sync
+- **Undo Send** — approved messages queue for 60s via [Upstash QStash](https://upstash.com/qstash) before delivery
+- Round-robin lead routing to sales reps with **Attio CRM** + **HubSpot** sync
 
 ### Lead Qualification Pipeline
 
@@ -66,41 +67,46 @@ A standalone GTM engineering platform that turns your PostgreSQL database into a
 
 ### Safety & Security
 
-- API key auth, Slack HMAC-SHA256 verification, Lemlist shared secret
+- API key auth, Slack HMAC-SHA256 verification, Lemlist shared secret, QStash signature verification
 - Sliding-window rate limiting (DB-backed), SSRF protection, PII redaction
 - LLM prompt injection guardrails, Zod input validation, error sanitization
-- 60-second undo-send queue with cancellation support
+- 60-second undo-send queue via QStash with cancellation support
 
 ---
 
 ## Architecture
 
-```
+```text
 ┌─────────────┐    ┌──────────────┐    ┌─────────────┐
-│   Lemlist    │───▶│  Webhook API │───▶│  LLM Draft  │
-│  (replies)   │    │  /api/outbound│   │  (OpenAI)   │
-└─────────────┘    └──────┬───────┘    └──────┬──────┘
-                          │                    │
-                   ┌──────▼────────────────────▼──────┐
-                   │         PostgreSQL (Neon)          │
-                   │  inbound.leads | conversations    │
-                   │  qualification_results | routing   │
-                   │  message_queue | rate_limit_log   │
-                   └──────┬───────────────────────────┘
-                          │
-              ┌───────────▼───────────┐
-              │     Slack Approval     │
-              │  Approve │ Edit │ Undo │
-              └───────────┬───────────┘
-                          │
-            ┌─────────────▼─────────────┐
-            │   Message Queue (60s)      │
-            │   → Lemlist / SmartLead    │
-            │   → Attio CRM sync        │
-            └───────────────────────────┘
+│  Lemlist     │───▶│  Webhook API │───▶│  LLM Draft  │
+│  SmartLead   │    │ /api/outbound│    │  (OpenAI)   │
+│  Instantly   │    └──────┬───────┘    └──────┬──────┘
+│  HeyReach    │           │                    │
+└─────────────┘     ┌──────▼────────────────────▼──────┐
+                    │         PostgreSQL (Neon)          │
+                    │  inbound.leads | conversations     │
+                    │  qualification_results | routing    │
+                    │  message_queue | rate_limit_log    │
+                    └──────┬────────────────────────────┘
+                           │
+               ┌───────────▼───────────┐
+               │     Slack Approval     │
+               │  Approve │ Edit │ Undo │
+               └───────────┬───────────┘
+                           │
+              ┌────────────▼────────────┐
+              │  QStash (60s delay)      │
+              │  → /api/send-reply       │
+              │  → Deepline Gateway      │
+              │  → Provider-specific API │
+              └────────────┬────────────┘
+                           │
+              ┌────────────▼────────────┐
+              │  Attio + HubSpot CRM    │
+              └─────────────────────────┘
 ```
 
-**Data flow:** [Deepline](https://deepline.com) enriches company and contact records → Atlas algorithm scores accounts → qualified leads route to sales reps → outbound replies get AI-drafted responses → Slack approval workflow → message queue with undo-send → CRM sync.
+**Data flow:** [Deepline](https://deepline.com) enriches company and contact records → Atlas algorithm scores accounts → qualified leads route to sales reps → outbound replies get AI-drafted responses → Slack approval workflow → QStash delayed queue with undo-send → Deepline gateway sends via correct provider → CRM sync.
 
 ---
 
@@ -131,9 +137,19 @@ psql $DATABASE_URL -f scripts/migrate.sql
 # Outbound engine (leads, conversations, qualification, routing)
 psql $DATABASE_URL -f scripts/migrate-outbound.sql
 
-# Message queue & rate limiting
+# Message queue with QStash support
+psql $DATABASE_WRITE_URL -f scripts/migrate-qstash-message-id.sql
+
+# Rate limiting
 psql $DATABASE_URL -f scripts/migrate-message-queue.sql
 ```
+
+### Set Up QStash (Undo-Send Queue)
+
+1. Create a free account at [console.upstash.com](https://console.upstash.com/qstash)
+2. Copy your **QStash Token**, **Current Signing Key**, and **Next Signing Key**
+3. Add them to `.env.local` (see Environment Variables below)
+4. On Vercel: add via [Upstash Marketplace integration](https://vercel.com/integrations/upstash) or manually in Project Settings → Environment Variables
 
 ### Start Development
 
@@ -162,20 +178,30 @@ DATABASE_WRITE_URL=postgresql://user:pass@host:5432/db
 # OpenAI for LLM reply drafting
 OPENAI_API_KEY=sk-...
 
-# Slack integration
+# Slack integration (https://api.slack.com/apps)
 SLACK_BOT_TOKEN=xoxb-...
 SLACK_SIGNING_SECRET=...
 SLACK_CHANNEL_OUTBOUND=replybot
 SLACK_CHANNEL_INBOUND=replybot
 
-# Lemlist / outbound platform
+# Lemlist (https://app.lemlist.com/settings/integrations)
 LEMLIST_API_KEY=...
 LEMLIST_WEBHOOK_SECRET=your-shared-secret
 LEMLIST_CAMPAIGN_IDS=camp_abc,camp_def
 
-# Deepline enrichment API (https://deepline.com)
+# Deepline gateway — routes to Lemlist/SmartLead/Instantly/HeyReach
 DEEPLINE_API_KEY=...
 DEEPLINE_CLI_PATH=/usr/local/bin/deepline
+```
+
+### QStash (Undo-Send Queue)
+
+Get these from [console.upstash.com/qstash](https://console.upstash.com/qstash):
+
+```env
+QSTASH_TOKEN=...
+QSTASH_CURRENT_SIGNING_KEY=sig_...
+QSTASH_NEXT_SIGNING_KEY=sig_...
 ```
 
 ### Security
@@ -255,19 +281,23 @@ The scoring model and outbound engine are intentionally opinionated. See [docs/C
 
 ## Integrations
 
-| Integration | Type | Purpose |
-|---|---|---|
-| [Deepline](https://deepline.com) CLI | Required | Company/contact enrichment |
-| PostgreSQL / [Neon](https://neon.tech) | Required | Primary datastore |
-| OpenAI | Required (outbound) | LLM reply drafting |
-| Slack | Required (outbound) | Approval workflow |
-| Lemlist | Required (outbound) | Email campaign replies |
-| Attio | Optional | CRM sync for qualified leads |
-| [Trigger.dev](https://trigger.dev) | Optional | Scheduled qualification + polling |
-| HubSpot | Optional plugin | CRM sync |
-| Notion | Optional plugin | Database sync |
-| Anthropic | Optional | AI qualification |
-| Exa | Optional | Web search enrichment fallback |
+| Integration | Type | Purpose | Setup |
+| --- | --- | --- | --- |
+| [Deepline](https://deepline.com) CLI | Required | Company/contact enrichment + outbound gateway | [deepline.com](https://deepline.com) |
+| PostgreSQL / [Neon](https://neon.tech) | Required | Primary datastore | [neon.tech](https://console.neon.tech) |
+| [OpenAI](https://platform.openai.com) | Required (outbound) | LLM reply drafting (GPT-5-mini) | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| [Slack](https://api.slack.com) | Required (outbound) | Approval workflow | [api.slack.com/apps](https://api.slack.com/apps) |
+| [Upstash QStash](https://upstash.com/qstash) | Required (outbound) | Undo-send message queue | [console.upstash.com/qstash](https://console.upstash.com/qstash) |
+| [Lemlist](https://lemlist.com) | Outbound provider | Email/LinkedIn campaigns | [app.lemlist.com](https://app.lemlist.com/settings/integrations) |
+| [SmartLead](https://smartlead.ai) | Outbound provider | Email campaigns (via Deepline) | [smartlead.ai](https://app.smartlead.ai) |
+| [Instantly](https://instantly.ai) | Outbound provider | Email campaigns (via Deepline) | [instantly.ai](https://app.instantly.ai) |
+| [HeyReach](https://heyreach.io) | Outbound provider | LinkedIn campaigns (via Deepline) | [heyreach.io](https://app.heyreach.io) |
+| Attio | Optional | CRM sync for qualified leads | [attio.com](https://attio.com) |
+| HubSpot | Optional | CRM sync | [developers.hubspot.com](https://developers.hubspot.com) |
+| [Trigger.dev](https://trigger.dev) | Optional | Scheduled qualification + polling | [trigger.dev](https://trigger.dev) |
+| Notion | Optional | Database sync | [notion.so](https://www.notion.so/my-integrations) |
+| Anthropic | Optional | AI qualification | [console.anthropic.com](https://console.anthropic.com) |
+| Exa | Optional | Web search enrichment fallback | [exa.ai](https://exa.ai) |
 
 ---
 
@@ -279,6 +309,12 @@ The scoring model and outbound engine are intentionally opinionated. See [docs/C
 npm i -g vercel
 vercel link
 vercel env pull  # pulls env vars to .env.local
+
+# Add QStash via Upstash marketplace (auto-provisions env vars):
+vercel integration add upstash
+# Or set manually in Vercel dashboard → Settings → Environment Variables:
+#   QSTASH_TOKEN, QSTASH_CURRENT_SIGNING_KEY, QSTASH_NEXT_SIGNING_KEY
+
 vercel deploy --prod
 ```
 
@@ -303,7 +339,7 @@ npx trigger.dev@latest deploy
 
 ## Keywords
 
-`gtm` `go-to-market` `signal-scoring` `outbound` `lead-generation` `lead-qualification` `sales-automation` `account-intelligence` `icp-scoring` `deepline` `lemlist` `slack` `attio` `crm` `ai-reply` `llm` `next.js` `postgresql` `neon`
+`gtm` `go-to-market` `signal-scoring` `outbound` `lead-generation` `lead-qualification` `sales-automation` `account-intelligence` `icp-scoring` `deepline` `lemlist` `smartlead` `instantly` `heyreach` `slack` `attio` `hubspot` `crm` `ai-reply` `llm` `qstash` `next.js` `postgresql` `neon`
 
 ---
 
