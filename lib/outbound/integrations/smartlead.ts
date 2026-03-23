@@ -190,6 +190,43 @@ export async function sendSmartLeadReply(opts: {
 }
 
 /**
+ * Send a LinkedIn reply to a lead in a campaign.
+ *
+ * Uses the Lemlist API to send a LinkedIn message. Lemlist handles
+ * the LinkedIn connection — the API routes the reply through the
+ * LinkedIn step associated with the campaign.
+ */
+export async function sendLinkedInReply(opts: {
+  leadId: string;
+  message: string;
+  campaignId: string;
+}): Promise<void> {
+  // Try Deepline first
+  try {
+    await deeplineLemlist("lemlist_send_linkedin_message", {
+      campaign_id: opts.campaignId,
+      lead_id: opts.leadId,
+      message: opts.message,
+    });
+    return;
+  } catch (err) {
+    console.log(
+      "[lemlist] Deepline LinkedIn send not available, falling back to direct API:",
+      (err as Error).message
+    );
+  }
+
+  // Direct Lemlist API fallback — same endpoint, different channel indicator
+  await lemlistDirect(
+    `/campaigns/${opts.campaignId}/leads/${opts.leadId}/reply`,
+    {
+      method: "POST",
+      body: JSON.stringify({ message: opts.message, channel: "linkedin" }),
+    }
+  );
+}
+
+/**
  * Get leads that have replied in a campaign.
  *
  * Falls back to direct Lemlist API since export is not yet
