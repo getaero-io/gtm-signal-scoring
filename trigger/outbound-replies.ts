@@ -16,7 +16,7 @@ import { generateResponse } from "../lib/outbound/llm";
 import { loadConfig } from "../lib/outbound/config/loader";
 import { postMessage } from "../lib/outbound/slack/client";
 import { formatOutboundReply } from "../lib/outbound/slack/messages";
-import { getLeadReplies } from "../lib/outbound/integrations/smartlead";
+import { getLeadReplies } from "../lib/outbound/integrations/deepline-outbound";
 import type { ResponseTemplate } from "../lib/outbound/config/types";
 
 async function queryOne<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T | null> {
@@ -108,7 +108,7 @@ export const outboundReplyCheck = schedules.task({
     for (const campaignId of campaignIds) {
       let replies: unknown[];
       try {
-        replies = await getLeadReplies(campaignId);
+        replies = await getLeadReplies("smartlead", campaignId);
       } catch (err) {
         logger.error(`Failed to fetch replies for campaign ${campaignId}`, {
           error: (err as Error).message,
@@ -145,7 +145,7 @@ export const outboundReplyCheck = schedules.task({
         try {
           // Check if already processed
           const existing = await queryOne(
-            `SELECT id FROM conversations
+            `SELECT id FROM inbound.conversations
              WHERE metadata->>'smartlead_lead_id' = $1
                AND metadata->>'campaign_id' = $2`,
             [smartleadLeadId, campaignId]
@@ -170,6 +170,7 @@ export const outboundReplyCheck = schedules.task({
               lastName,
               companyName,
               JSON.stringify({
+                provider: "smartlead",
                 smartlead_lead_id: smartleadLeadId,
                 campaign_id: campaignId,
               }),
@@ -186,7 +187,7 @@ export const outboundReplyCheck = schedules.task({
           // Fetch full lead record for context building
           const lead =
             (await queryOne<Record<string, unknown>>(
-              "SELECT * FROM leads WHERE id = $1",
+              "SELECT * FROM inbound.leads WHERE id = $1",
               [leadId]
             )) ?? {};
 
@@ -219,6 +220,7 @@ export const outboundReplyCheck = schedules.task({
               replyText,
               draftedResponse,
               JSON.stringify({
+                provider: "smartlead",
                 smartlead_lead_id: smartleadLeadId,
                 campaign_id: campaignId,
                 template_name: template.name,
@@ -237,7 +239,8 @@ export const outboundReplyCheck = schedules.task({
             campaignName: campaignId,
             originalReply: replyText,
             draftedResponse,
-            smartleadUrl: `https://app.lemlist.com/campaigns/${campaignId}`,
+            campaignUrl: `https://app.smartlead.ai/campaigns/${campaignId}`,
+            provider: "smartlead",
             conversationId,
           });
 
