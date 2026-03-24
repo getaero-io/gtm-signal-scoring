@@ -9,6 +9,9 @@ export const SCORING_WEIGHTS: ScoringWeights = {
   namedContactPoints: scoring.contactIdentity.namedContactPoints,
   founderMatchPoints: scoring.founderMatch.founderMatchPoints,
   mxFoundPoints: scoring.dataCoverage.mxFoundPoints,
+  techStackDetectedPoints: scoring.techStack.techStackDetectedPoints,
+  icpMatchBonusPoints: scoring.techStack.icpMatchBonusPoints,
+  icpTechnologies: scoring.techStack.icpTechnologies,
 };
 
 export const BASE_SCORE = scoring.baseScore;

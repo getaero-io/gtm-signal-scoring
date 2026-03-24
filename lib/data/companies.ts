@@ -1,5 +1,5 @@
 import { query } from '@/lib/db';
-import { Account, Contact } from '@/types/accounts';
+import { Account, Contact, TechStackItem } from '@/types/accounts';
 import { calculateAtlasScore, generate30DayTrend, detectSignals } from '@/lib/scoring/engine';
 import { determineSeniority, isP0Contact } from '@/lib/scoring/p0-detection';
 
@@ -100,7 +100,8 @@ export async function getAccountById(id: string): Promise<Account | null> {
   if (domains.length === 0) return null;
 
   const contacts = await getContactsForDomain(domain);
-  return transformDomainToAccount(domains[0], contacts);
+  const techStack = await getTechStackForDomain(domain);
+  return transformDomainToAccount(domains[0], contacts, techStack);
 }
 
 export async function getAccountSignals(account: Account) {
@@ -132,12 +133,13 @@ export async function getAccountSignals(account: Account) {
     validBusinessEmails: parseInt(row?.valid_business || '0'),
     validFreeEmails: parseInt(row?.valid_free || '0'),
     mxFound: row?.mx ?? false,
+    techStack: account.tech_stack,
     accountId: account.id,
     enrichedAt: account.updated_at,
   });
 }
 
-function transformDomainToAccount(agg: DomainAggregate, contacts: Contact[]): Account {
+function transformDomainToAccount(agg: DomainAggregate, contacts: Contact[], techStack: TechStackItem[] = []): Account {
   const name = agg.brand_name || agg.domain;
   const validBusinessEmails = parseInt(agg.valid_business_email_count || '0');
   const validFreeEmails = parseInt(agg.valid_free_email_count || '0');
@@ -148,6 +150,7 @@ function transformDomainToAccount(agg: DomainAggregate, contacts: Contact[]): Ac
     validBusinessEmails,
     validFreeEmails,
     mxFound,
+    techStack,
   });
 
   const trend30d = generate30DayTrend({
@@ -170,7 +173,7 @@ function transformDomainToAccount(agg: DomainAggregate, contacts: Contact[]): Ac
       current: p0Count,
       total: contacts.length,
     },
-    tech_stack: [],
+    tech_stack: techStack,
     key_contacts:
       p0Count > 0
         ? contacts.filter(c => c.is_p0)
@@ -205,6 +208,87 @@ async function getContactsForDomain(domain: string): Promise<Contact[]> {
   }
 
   return contacts;
+}
+
+async function getTechStackForDomain(domain: string): Promise<TechStackItem[]> {
+  const records = await query<PersonRecord>(
+    `SELECT id, provider, identity_payload, raw_payload, created_at
+     FROM dl_resolved.resolved_people
+     WHERE is_match = true
+       AND identity_payload->'domain' @> jsonb_build_array($1::text)`,
+    [domain]
+  );
+
+  const seen = new Set<string>();
+  const items: TechStackItem[] = [];
+
+  for (const record of records) {
+    const techs = extractTechFromRecord(record);
+    for (const tech of techs) {
+      const key = tech.name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push({ ...tech, account_id: domain });
+    }
+  }
+
+  return items;
+}
+
+function extractTechFromRecord(record: PersonRecord): Omit<TechStackItem, 'account_id'>[] {
+  const raw = record.raw_payload || {};
+  const context = raw.__deepline_identity?.context_cols_from_enrich || {};
+  const result = raw.result || {};
+  const items: Omit<TechStackItem, 'account_id'>[] = [];
+
+  // Path 1: Explicit tech_stack or technologies arrays from enrichment providers
+  const techArrayPaths = [
+    context.tech_stack,
+    context.technologies,
+    result.tech_stack,
+    result.technologies,
+    raw.technologies,
+    raw.tech_stack,
+  ];
+
+  for (const arr of techArrayPaths) {
+    if (!Array.isArray(arr)) continue;
+    for (const entry of arr) {
+      const name = typeof entry === 'string' ? entry : entry?.name;
+      const category = typeof entry === 'object' ? entry?.category : undefined;
+      if (name && typeof name === 'string') {
+        items.push({
+          id: `tech-${record.id}-${name.toLowerCase().replace(/\s+/g, '-')}`,
+          name,
+          category: category || undefined,
+          source: record.provider,
+          adopted_at: record.created_at,
+        });
+      }
+    }
+  }
+
+  // Path 2: BuiltWith-style provider data (nested under builtwith key)
+  const builtwith = raw.builtwith || result.builtwith;
+  if (builtwith && typeof builtwith === 'object') {
+    const techs = builtwith.technologies || builtwith.results || [];
+    if (Array.isArray(techs)) {
+      for (const tech of techs) {
+        const name = tech.name || tech.technology;
+        if (name && typeof name === 'string') {
+          items.push({
+            id: `tech-${record.id}-${name.toLowerCase().replace(/\s+/g, '-')}`,
+            name,
+            category: tech.category || tech.tag || undefined,
+            source: 'builtwith',
+            adopted_at: record.created_at,
+          });
+        }
+      }
+    }
+  }
+
+  return items;
 }
 
 function extractContactFromRecord(record: PersonRecord, domain: string): Contact | null {

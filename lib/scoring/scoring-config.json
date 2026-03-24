@@ -20,6 +20,13 @@
     "dataCoverage": {
       "description": "Bonus for domain having an active MX record (email server confirmed)",
       "mxFoundPoints": 5
+    },
+    "techStack": {
+      "description": "Points for detected technology stack items, with bonus for ICP-relevant technologies",
+      "maxPoints": 15,
+      "techStackDetectedPoints": 5,
+      "icpMatchBonusPoints": 10,
+      "icpTechnologies": ["nextjs", "react", "typescript", "postgresql", "vercel", "node", "python", "aws", "gcp", "kubernetes"]
     }
   },
   "p0Detection": {
