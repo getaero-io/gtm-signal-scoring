@@ -4,13 +4,15 @@ export interface ScoreBreakdown {
   contact_identity: number;   // named contact with title (max 15)
   founder_match: number;      // P0 founder/decision-maker match (max 20)
   data_coverage: number;      // MX record confirmed (max 5)
+  tech_stack: number;         // tech stack detection + ICP match (max 15)
 }
 
 export type SignalType =
   | 'email_validated'
   | 'founder_identified'
   | 'contact_named'
-  | 'domain_active';
+  | 'domain_active'
+  | 'tech_stack_detected';
 
 export interface Signal {
   id: string;
@@ -34,4 +36,7 @@ export interface ScoringWeights {
   namedContactPoints: number;
   founderMatchPoints: number;
   mxFoundPoints: number;
+  techStackDetectedPoints: number;
+  icpMatchBonusPoints: number;
+  icpTechnologies: string[];
 }

@@ -1,5 +1,5 @@
 import { ScoreBreakdown, TrendPoint, Signal } from '@/types/scoring';
-import { Contact } from '@/types/accounts';
+import { Contact, TechStackItem } from '@/types/accounts';
 import { SCORING_WEIGHTS } from './config';
 
 export function calculateAtlasScore(params: {
@@ -7,8 +7,9 @@ export function calculateAtlasScore(params: {
   validBusinessEmails: number;
   validFreeEmails: number;
   mxFound: boolean;
+  techStack?: TechStackItem[];
 }): ScoreBreakdown {
-  const { contacts, validBusinessEmails, validFreeEmails, mxFound } = params;
+  const { contacts, validBusinessEmails, validFreeEmails, mxFound, techStack = [] } = params;
 
   const emailQuality = Math.min(
     40,
@@ -28,7 +29,9 @@ export function calculateAtlasScore(params: {
 
   const dataCoverage = mxFound ? SCORING_WEIGHTS.mxFoundPoints : 0;
 
-  const total = Math.min(100, 20 + emailQuality + contactIdentity + founderMatch + dataCoverage);
+  const techStackScore = calculateTechStackScore(techStack);
+
+  const total = Math.min(100, 20 + emailQuality + contactIdentity + founderMatch + dataCoverage + techStackScore);
 
   return {
     total: Math.round(total),
@@ -36,7 +39,22 @@ export function calculateAtlasScore(params: {
     contact_identity: Math.round(contactIdentity),
     founder_match: Math.round(founderMatch),
     data_coverage: Math.round(dataCoverage),
+    tech_stack: Math.round(techStackScore),
   };
+}
+
+function calculateTechStackScore(techStack: TechStackItem[]): number {
+  if (techStack.length === 0) return 0;
+
+  let score = SCORING_WEIGHTS.techStackDetectedPoints;
+
+  const icpSet = new Set(SCORING_WEIGHTS.icpTechnologies.map(t => t.toLowerCase()));
+  const hasIcpMatch = techStack.some(item => icpSet.has(item.name.toLowerCase()));
+  if (hasIcpMatch) {
+    score += SCORING_WEIGHTS.icpMatchBonusPoints;
+  }
+
+  return Math.min(15, score);
 }
 
 export function generate30DayTrend(params: {
@@ -68,10 +86,11 @@ export function detectSignals(params: {
   validBusinessEmails: number;
   validFreeEmails: number;
   mxFound: boolean;
+  techStack?: TechStackItem[];
   accountId: string;
   enrichedAt: string;
 }): Signal[] {
-  const { contacts, validBusinessEmails, validFreeEmails, mxFound, accountId, enrichedAt } = params;
+  const { contacts, validBusinessEmails, validFreeEmails, mxFound, techStack = [], accountId, enrichedAt } = params;
   const signals: Signal[] = [];
 
   if (validBusinessEmails > 0) {
@@ -133,6 +152,28 @@ export function detectSignals(params: {
       impact: SCORING_WEIGHTS.mxFoundPoints,
       metadata: {},
       description: 'Domain has active MX record — email server confirmed',
+    });
+  }
+
+  if (techStack.length > 0) {
+    const icpSet = new Set(SCORING_WEIGHTS.icpTechnologies.map(t => t.toLowerCase()));
+    const icpMatches = techStack.filter(item => icpSet.has(item.name.toLowerCase()));
+    const impact = calculateTechStackScore(techStack);
+
+    signals.push({
+      id: `techstack-${accountId}`,
+      account_id: accountId,
+      type: 'tech_stack_detected',
+      date: enrichedAt,
+      impact,
+      metadata: {
+        count: techStack.length,
+        technologies: techStack.map(t => t.name),
+        icp_matches: icpMatches.map(t => t.name),
+      },
+      description: icpMatches.length > 0
+        ? `${techStack.length} technologies detected, ${icpMatches.length} ICP match${icpMatches.length > 1 ? 'es' : ''}: ${icpMatches.map(t => t.name).join(', ')}`
+        : `${techStack.length} technolog${techStack.length > 1 ? 'ies' : 'y'} detected`,
     });
   }
 

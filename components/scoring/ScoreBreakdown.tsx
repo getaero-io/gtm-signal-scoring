@@ -36,6 +36,13 @@ export default function ScoreBreakdownDisplay({ breakdown }: Props) {
       color: 'bg-blue-500',
     },
     {
+      label: 'Tech Stack',
+      description: 'Technology detection + ICP match',
+      score: breakdown.tech_stack,
+      max: 15,
+      color: 'bg-orange-500',
+    },
+    {
       label: 'Domain Active',
       description: 'MX record confirmed — domain receives email',
       score: breakdown.data_coverage,

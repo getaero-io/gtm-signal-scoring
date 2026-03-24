@@ -6,13 +6,15 @@ import ScoreBreakdownDisplay from '@/components/scoring/ScoreBreakdown';
 import { TrendChart } from '@/components/scoring/TrendChart';
 import { Signal } from '@/types/scoring';
 import { Contact } from '@/types/accounts';
-import { Mail, User, Building2, Globe, Zap } from 'lucide-react';
+import { TechStackItem } from '@/types/accounts';
+import { Mail, User, Building2, Globe, Zap, Layers } from 'lucide-react';
 
 const SIGNAL_CONFIG: Record<string, { icon: string; color: string; bg: string }> = {
   email_validated: { icon: '\u2709', color: 'text-emerald-600', bg: 'bg-emerald-50' },
   founder_identified: { icon: '\uD83D\uDC64', color: 'text-purple-600', bg: 'bg-purple-50' },
   contact_named: { icon: '\uD83C\uDFF7', color: 'text-blue-600', bg: 'bg-blue-50' },
   domain_active: { icon: '\uD83C\uDF10', color: 'text-gray-600', bg: 'bg-gray-50' },
+  tech_stack_detected: { icon: '\uD83D\uDEE0', color: 'text-orange-600', bg: 'bg-orange-50' },
 };
 
 function ContactCard({ contact }: { contact: Contact }) {
@@ -62,6 +64,44 @@ function ContactCard({ contact }: { contact: Contact }) {
             LinkedIn
           </a>
         )}
+      </div>
+    </div>
+  );
+}
+
+function TechStackSection({ items }: { items: TechStackItem[] }) {
+  if (items.length === 0) return null;
+
+  const byCategory = new Map<string, TechStackItem[]>();
+  for (const item of items) {
+    const cat = item.category || 'Other';
+    const existing = byCategory.get(cat) || [];
+    existing.push(item);
+    byCategory.set(cat, existing);
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+      <h2 className="text-sm font-semibold text-gray-700 mb-4 uppercase tracking-wide flex items-center gap-2">
+        <Layers className="w-4 h-4 text-orange-500" />
+        Tech Stack ({items.length})
+      </h2>
+      <div className="space-y-3">
+        {Array.from(byCategory.entries()).map(([category, techs]) => (
+          <div key={category}>
+            <p className="text-xs font-medium text-gray-400 uppercase mb-1.5">{category}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {techs.map(tech => (
+                <span
+                  key={tech.id}
+                  className="px-2 py-1 text-xs rounded-md bg-orange-50 text-orange-700 font-medium"
+                >
+                  {tech.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -222,6 +262,9 @@ export default async function AccountDetailPage({
                 </div>
               </div>
             )}
+
+            {/* Tech Stack */}
+            <TechStackSection items={account.tech_stack} />
 
             {/* Intent Signals */}
             {signals.length > 0 && (
