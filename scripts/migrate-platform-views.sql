@@ -4,33 +4,36 @@
 
 -- =============================================================
 -- v_contacts: Flattened view of dl_resolved.resolved_people
+-- Columns: id (text PK), identity_payload (jsonb), raw_payload (jsonb)
 -- =============================================================
-CREATE OR REPLACE VIEW public.v_contacts AS
+CREATE OR REPLACE VIEW inbound.v_contacts AS
 SELECT
-  rp.row_id,
+  rp.id,
   -- Email (primary)
   COALESCE(
-    rp.raw_payload->'identity_payload'->'email'->>0,
+    rp.identity_payload->'email'->>0,
     rp.raw_payload->'result'->>'email'
   ) AS email,
 
   -- Name fields
   COALESCE(
     rp.raw_payload->'result'->>'firstname',
-    split_part(rp.raw_payload->'identity_payload'->'person_name'->>0, ' ', 1)
+    split_part(rp.identity_payload->'person_name'->>0, ' ', 1)
   ) AS first_name,
   COALESCE(
     rp.raw_payload->'result'->>'lastname',
     CASE
-      WHEN rp.raw_payload->'identity_payload'->'person_name'->>0 LIKE '% %'
-      THEN substring(rp.raw_payload->'identity_payload'->'person_name'->>0 FROM position(' ' IN rp.raw_payload->'identity_payload'->'person_name'->>0) + 1)
+      WHEN rp.identity_payload->'person_name'->>0 LIKE '% %'
+      THEN substring(rp.identity_payload->'person_name'->>0 FROM position(' ' IN rp.identity_payload->'person_name'->>0) + 1)
       ELSE NULL
     END
   ) AS last_name,
   COALESCE(
-    rp.raw_payload->'identity_payload'->'person_name'->>0,
+    rp.identity_payload->'person_name'->>0,
     concat_ws(' ', rp.raw_payload->'result'->>'firstname', rp.raw_payload->'result'->>'lastname')
   ) AS full_name,
+
+  rp.display_name,
 
   -- Title + founder detection
   COALESCE(
@@ -43,15 +46,24 @@ SELECT
   rp.raw_payload->'__deepline_identity'->'context_cols_from_enrich'->>'brand_name' AS brand_name,
 
   -- Domain (first from identity_payload array)
-  rp.raw_payload->'identity_payload'->'domain'->>0 AS domain,
+  rp.identity_payload->'domain'->>0 AS domain,
 
   -- Email validation (ZeroBounce)
   rp.raw_payload->'result'->>'status' AS email_status,
-  (rp.raw_payload->'result'->>'free_email')::boolean AS is_free_email,
-  (rp.raw_payload->'result'->>'mx_found')::boolean AS mx_found,
+  CASE WHEN rp.raw_payload->'result'->>'free_email' IN ('true','True') THEN true
+       WHEN rp.raw_payload->'result'->>'free_email' IN ('false','False') THEN false
+       ELSE NULL END AS is_free_email,
+  CASE WHEN rp.raw_payload->'result'->>'mx_found' IN ('true','True') THEN true
+       WHEN rp.raw_payload->'result'->>'mx_found' IN ('false','False') THEN false
+       ELSE NULL END AS mx_found,
 
   -- LinkedIn
-  rp.raw_payload->'identity_payload'->'linkedin'->>0 AS linkedin_url,
+  rp.identity_payload->'linkedin'->>0 AS linkedin_url,
+
+  -- Provider metadata
+  rp.provider,
+  rp.entity_type,
+  rp.super_person_id,
 
   -- Timestamps
   rp.created_at,
@@ -59,13 +71,14 @@ SELECT
 
 FROM dl_resolved.resolved_people rp;
 
-COMMENT ON VIEW public.v_contacts IS 'Flattened contact records from Deepline identity resolution. Stable column names over internal JSONB paths.';
+COMMENT ON VIEW inbound.v_contacts IS 'Flattened contact records from Deepline identity resolution. Stable column names over internal JSONB paths.';
 
 
 -- =============================================================
 -- v_events: Flattened view of dl_cache.enrichment_event
+-- Columns: row_id (uuid PK), source (text), doc (jsonb)
 -- =============================================================
-CREATE OR REPLACE VIEW public.v_events AS
+CREATE OR REPLACE VIEW inbound.v_events AS
 SELECT
   e.row_id,
   e.source,
@@ -98,7 +111,7 @@ SELECT
 FROM dl_cache.enrichment_event e
 WHERE e.source LIKE 'cache:local:event_tamdb_write:%';
 
-COMMENT ON VIEW public.v_events IS 'Flattened webhook events from outbound platforms (Lemlist, SmartLead, HeyReach, Instantly). Stable column names over internal JSONB doc paths.';
+COMMENT ON VIEW inbound.v_events IS 'Flattened webhook events from outbound platforms (Lemlist, SmartLead, HeyReach, Instantly). Stable column names over internal JSONB doc paths.';
 
 
 -- =============================================================
@@ -108,10 +121,8 @@ ALTER TABLE IF EXISTS inbound.processed_webhook_events
   ADD COLUMN IF NOT EXISTS app_id TEXT NOT NULL DEFAULT 'replybot';
 
 -- Drop old PK and create composite PK for multi-app claiming
--- (only if the old single-column PK exists)
 DO $$
 BEGIN
-  -- Check if app_id is already part of the primary key
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.key_column_usage
     WHERE table_schema = 'inbound'
@@ -128,10 +139,9 @@ COMMENT ON COLUMN inbound.processed_webhook_events.app_id IS 'Identifier for the
 
 
 -- =============================================================
--- v_unprocessed_events: Convenience view for apps polling new events
+-- get_unprocessed_events: Convenience function for apps polling new events
 -- =============================================================
--- Note: This is a function, not a view, because it needs a parameter (app_id)
-CREATE OR REPLACE FUNCTION public.get_unprocessed_events(p_app_id TEXT DEFAULT 'replybot', p_limit INT DEFAULT 20)
+CREATE OR REPLACE FUNCTION inbound.get_unprocessed_events(p_app_id TEXT DEFAULT 'replybot', p_limit INT DEFAULT 20)
 RETURNS TABLE (
   row_id UUID,
   source TEXT,
@@ -163,7 +173,7 @@ RETURNS TABLE (
     e.linkedin_url,
     e.received_at,
     e.created_at
-  FROM public.v_events e
+  FROM inbound.v_events e
   LEFT JOIN inbound.processed_webhook_events p
     ON p.event_row_id = e.row_id AND p.app_id = p_app_id
   WHERE p.event_row_id IS NULL
@@ -171,4 +181,4 @@ RETURNS TABLE (
   LIMIT p_limit;
 $$ LANGUAGE sql STABLE;
 
-COMMENT ON FUNCTION public.get_unprocessed_events IS 'Returns events not yet processed by a given app_id. Usage: SELECT * FROM get_unprocessed_events(''my_app'', 50);';
+COMMENT ON FUNCTION inbound.get_unprocessed_events IS 'Returns events not yet processed by a given app_id. Usage: SELECT * FROM get_unprocessed_events(''my_app'', 50);';

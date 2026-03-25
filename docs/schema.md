@@ -6,7 +6,7 @@
 
 ```sql
 -- Get unprocessed reply events for your app
-SELECT * FROM get_unprocessed_events('my_app', 50);
+SELECT * FROM inbound.get_unprocessed_events('my_app', 50);
 
 -- Browse all contacts with flattened fields
 SELECT email, full_name, title, brand_name, domain
@@ -106,7 +106,7 @@ Returns events from `v_events` that haven't been claimed by the given `app_id`.
 
 ```sql
 -- Get 50 unprocessed events for your custom app
-SELECT * FROM get_unprocessed_events('my_slack_bot', 50);
+SELECT * FROM inbound.get_unprocessed_events('my_slack_bot', 50);
 ```
 
 ---
@@ -206,7 +206,7 @@ Signal store for enrichment data, ICP scores, and reply intent signals.
 ## Building Your Own App
 
 1. **Pick an `app_id`** — any unique string (e.g. `my_slack_bot`, `crm_sync`)
-2. **Poll for events** — `SELECT * FROM get_unprocessed_events('my_app', 50)`
+2. **Poll for events** — `SELECT * FROM inbound.get_unprocessed_events('my_app', 50)`
 3. **Process each event** — do whatever your app does
 4. **Mark as processed** — `INSERT INTO inbound.processed_webhook_events (event_row_id, app_id, status) VALUES ($1, 'my_app', 'processed') ON CONFLICT DO NOTHING`
 5. **Repeat** — on a cron, QStash push, or manual trigger
