@@ -11,7 +11,7 @@ export interface WebhookEventInput {
   errorMessage?: string;
 }
 
-export async function logWebhookEvent(input: WebhookEventInput): Promise<number> {
+export async function logWebhookEvent(input: WebhookEventInput): Promise<string | null> {
   const status = input.status ?? 'received';
 
   const rows = await writeQuery<{ id: string }>(
@@ -31,11 +31,11 @@ export async function logWebhookEvent(input: WebhookEventInput): Promise<number>
     ]
   );
 
-  return Number(rows[0].id) || 0;
+  return rows[0]?.id ?? null;
 }
 
 export async function updateWebhookEvent(
-  eventId: number,
+  eventId: string,
   update: {
     status: string;
     leadId?: string;
