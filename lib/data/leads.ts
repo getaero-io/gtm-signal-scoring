@@ -18,36 +18,36 @@ export async function enrichDomainFromNeon(domain: string): Promise<EnrichmentRe
     `SELECT
        COUNT(*) FILTER (
          WHERE provider = 'zerobounce'
-           AND raw_payload->'result'->>'status' = 'valid'
-           AND (raw_payload->'result'->>'free_email') = 'false'
+           AND raw_payload::jsonb->'result'->>'status' = 'valid'
+           AND (raw_payload::jsonb->'result'->>'free_email') = 'false'
        ) AS valid_business,
        COUNT(*) FILTER (
          WHERE provider = 'zerobounce'
-           AND raw_payload->'result'->>'status' = 'valid'
-           AND (raw_payload->'result'->>'free_email') = 'true'
+           AND raw_payload::jsonb->'result'->>'status' = 'valid'
+           AND (raw_payload::jsonb->'result'->>'free_email') = 'true'
        ) AS valid_free,
        BOOL_OR(
-         provider = 'zerobounce' AND (raw_payload->'result'->>'mx_found') = 'true'
+         provider = 'zerobounce' AND (raw_payload::jsonb->'result'->>'mx_found') = 'true'
        ) AS mx,
        json_agg(json_build_object(
          'full_name', COALESCE(
-           raw_payload->'result'->>'firstname' || ' ' || raw_payload->'result'->>'lastname',
-           identity_payload->'person_name'->>0,
+           raw_payload::jsonb->'result'->>'firstname' || ' ' || raw_payload::jsonb->'result'->>'lastname',
+           identity_payload::jsonb->'person_name'->>0,
            ''
          ),
-         'email', identity_payload->'email'->>0,
+         'email', identity_payload::jsonb->'email'->>0,
          'title', COALESCE(
-           raw_payload->'__deepline_identity'->'context_cols_from_enrich'->>'grok_founder_title',
-           raw_payload->'result'->>'title'
+           raw_payload::jsonb->'__deepline_identity'->'context_cols_from_enrich'->>'grok_founder_title',
+           raw_payload::jsonb->'result'->>'title'
          ),
          'is_p0', (
-           raw_payload->'__deepline_identity'->'context_cols_from_enrich'->>'grok_founder_title' IS NOT NULL
-           AND raw_payload->'__deepline_identity'->'context_cols_from_enrich'->>'grok_founder_title' != ''
+           raw_payload::jsonb->'__deepline_identity'->'context_cols_from_enrich'->>'grok_founder_title' IS NOT NULL
+           AND raw_payload::jsonb->'__deepline_identity'->'context_cols_from_enrich'->>'grok_founder_title' != ''
          )
-       )) FILTER (WHERE identity_payload->'email'->>0 IS NOT NULL) AS contacts
+       )) FILTER (WHERE identity_payload::jsonb->'email'->>0 IS NOT NULL) AS contacts
      FROM dl_resolved.resolved_people
      WHERE is_match = true
-       AND identity_payload->'domain' @> jsonb_build_array($1::text)`,
+       AND identity_payload::jsonb->'domain' @> jsonb_build_array($1::text)`,
     [domain]
   );
 
