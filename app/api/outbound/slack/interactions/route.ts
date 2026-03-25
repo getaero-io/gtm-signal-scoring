@@ -47,13 +47,15 @@ export async function POST(req: NextRequest) {
 
   // Ack immediately, process async (Slack needs response within 3s)
   handleInteraction(payload)
-    .then(() => updateWebhookEvent(eventId, { status: 'processed' }))
+    .then(() => eventId ? updateWebhookEvent(eventId, { status: 'processed' }) : undefined)
     .catch(async (err) => {
       console.error("[slack/interactions] Error:", err);
-      await updateWebhookEvent(eventId, {
-        status: 'failed',
-        errorMessage: (err as Error).message,
-      }).catch(() => {});
+      if (eventId) {
+        await updateWebhookEvent(eventId, {
+          status: 'failed',
+          errorMessage: (err as Error).message,
+        }).catch(() => {});
+      }
     });
 
   return NextResponse.json({ ok: true });

@@ -3,7 +3,7 @@ import { handleLemlistWebhook } from '@/lib/outbound/lemlist/webhook-handler';
 import { logWebhookEvent, updateWebhookEvent } from '@/lib/outbound/safety/webhook-logger';
 
 export async function POST(req: NextRequest) {
-  let eventId: number | null = null;
+  let eventId: string | null = null;
 
   try {
     // Verify webhook secret if configured
@@ -28,18 +28,20 @@ export async function POST(req: NextRequest) {
     const result = await handleLemlistWebhook(payload);
 
     // Update event with processing result
-    await updateWebhookEvent(eventId, {
-      status: result.ok ? 'processed' : 'failed',
-      leadId: undefined,
-      conversationId: result.conversation_id,
-      processingResult: result as Record<string, unknown>,
-    });
+    if (eventId) {
+      await updateWebhookEvent(eventId, {
+        status: result.ok ? 'processed' : 'failed',
+        leadId: undefined,
+        conversationId: result.conversation_id,
+        processingResult: result as Record<string, unknown>,
+      });
+    }
 
     return NextResponse.json(result);
   } catch (err) {
     console.error("[api/outbound/lemlist/webhook] Error:", err);
     if (eventId) {
-      await updateWebhookEvent(eventId, {
+      await updateWebhookEvent(eventId!, {
         status: 'failed',
         errorMessage: (err as Error).message,
       }).catch(() => {});
