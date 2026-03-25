@@ -1,12 +1,87 @@
 faqs:
+  # --- Core Product ---
+  - question: "What does Deepline do?"
+    answer: "Deepline is data infrastructure for GTM teams. We unify enrichment across 20+ providers via waterfall, score and route leads against your ICP, and automate outbound reply workflows with LLM drafting and Slack approval. One API replaces 5+ point solutions."
+    keywords: ["what", "deepline", "do", "about", "product", "explain", "curious"]
+
   - question: "How does Deepline's enrichment work?"
-    answer: "We route your enrichment requests through multiple providers in a waterfall pattern — trying each source in priority order until we find the data you need. One API call, best available data."
-    keywords: ["how", "enrichment", "work", "data"]
+    answer: "We route your enrichment requests through multiple providers in a waterfall pattern — trying each source in priority order until we find the data you need. One API call, best available data. You can bring your own API keys (free) or use ours at cost."
+    keywords: ["how", "enrichment", "work", "data", "waterfall", "provider"]
 
+  - question: "How is Deepline different from Clay?"
+    answer: "Clay is a visual spreadsheet for GTM workflows — great for non-technical teams. Deepline is code-first infrastructure: a CLI + API that integrates into your existing dev workflow. If you're already building in Claude Code, Cursor, or n8n, Deepline plugs directly into your stack without a separate UI. We also handle waterfall enrichment across 20+ providers with one call, which Clay doesn't natively do."
+    keywords: ["clay", "vs", "different", "compare", "migrate", "migration", "switch"]
+
+  - question: "Can I use Deepline with my own agents outside of Claude Code?"
+    answer: "Yes — Deepline has a REST API and CLI. You can integrate it with any agent framework, custom scripts, n8n workflows, Make.com automations, or your own codebase. Claude Code is just one way to interact with it."
+    keywords: ["agent", "own", "outside", "claude code", "mcp", "api", "cli", "rest"]
+
+  - question: "Can I customize the waterfall enrichment order?"
+    answer: "Yes, the waterfall logic is fully configurable. You define which providers to try and in what order. We handle the routing, dedup, and failover automatically."
+    keywords: ["waterfall", "customize", "order", "provider", "logic", "first"]
+
+  # --- Pricing & Business Model ---
+  - question: "How does pricing work?"
+    answer: "Bring your own API keys (BYOK) and Deepline is free — we charge nothing on top. If you don't have keys, we pass ours through at cost with a small markup. No seat-based pricing, no per-enrichment fees beyond provider costs."
+    keywords: ["pricing", "cost", "price", "pay", "free", "budget", "money", "expensive", "cheap", "fee"]
+
+  - question: "How do you make money if BYOK is free?"
+    answer: "Our revenue comes from three places: managed enrichment (small markup when you use our provider keys instead of your own), premium features (advanced scoring, routing, CRM sync), and enterprise plans for teams that need custom deployment and SLAs."
+    keywords: ["make money", "revenue", "business model", "catch", "free"]
+
+  - question: "What does the markup look like for using your keys?"
+    answer: "Around 30% on top of the provider's actual cost. So if an Apollo enrichment costs $0.03, you'd pay ~$0.04 through us. Most teams find it's still cheaper than managing 5+ vendor contracts themselves."
+    keywords: ["markup", "30%", "percentage", "cost", "key", "keys"]
+
+  # --- Integrations ---
   - question: "What integrations do you support?"
-    answer: "We integrate with 20+ enrichment providers, CRMs (Attio, HubSpot), outbound tools (Lemlist, SmartLead, HeyReach), and messaging platforms (Slack). Everything is API-first."
-    keywords: ["integrate", "integration", "connect", "crm", "tools"]
+    answer: "We integrate with 20+ enrichment providers (Apollo, Prospeo, LeadMagic, etc.), CRMs (HubSpot, Attio), outbound tools (Lemlist, SmartLead, HeyReach, Instantly), and Slack for approval workflows. Everything is API-first with a CLI."
+    keywords: ["integrate", "integration", "connect", "crm", "tools", "hubspot", "attio", "work with"]
 
+  - question: "Do you have a CRM connection like HubSpot?"
+    answer: "Yes — we sync leads, contacts, and companies bi-directionally with HubSpot and Attio. When a lead is qualified, we create a deal at the right pipeline stage with the assigned owner. Enrichment data flows back to keep your CRM fresh."
+    keywords: ["crm", "hubspot", "attio", "salesforce", "sync", "connection"]
+
+  - question: "Do you have a REST API or only CLI?"
+    answer: "Both. The CLI is great for interactive use and Claude Code integration. The REST API (code.deepline.com/api/v2) handles everything programmatically — enrichment, campaign management, lead routing, and more. Full docs available."
+    keywords: ["api", "rest", "cli", "endpoint", "programmatic", "sdk"]
+
+  # --- Reply Automation ---
   - question: "How does the reply automation work?"
-    answer: "When someone replies to your outbound campaign, we draft an LLM-powered response using your company context and ICP data, then post it to Slack for your team to approve, edit, or reject before sending."
-    keywords: ["reply", "automation", "outbound", "draft", "llm"]
+    answer: "When someone replies to your outbound campaign (email or LinkedIn), Deepline drafts an LLM-powered response using your company context, ICP data, and conversation history. The draft goes to Slack for one-click approve, edit, or reject. Approved replies send back through the original platform automatically."
+    keywords: ["reply", "automation", "outbound", "draft", "llm", "response"]
+
+  # --- Technical / Setup ---
+  - question: "How long does it take to set up?"
+    answer: "Most teams are live in under a week. Define your ICP in YAML, connect your enrichment keys, and you're running. The CLI walks you through the setup."
+    keywords: ["setup", "start", "onboard", "time", "long", "install", "configure"]
+
+  - question: "Can this handle multiple interconnected tables/setups?"
+    answer: "Yes — Deepline supports multi-table configurations with cross-references. You can define enrichment flows that span multiple data sources and output to different destinations (CRM, outbound tool, custom DB)."
+    keywords: ["multiple", "table", "inter-connected", "complex", "setup"]
+
+  - question: "What about data privacy?"
+    answer: "We don't store PII beyond what's needed for enrichment caching. All data flows through your own Postgres instance — you control retention and access. BYOK means your provider keys never leave your environment."
+    keywords: ["privacy", "data", "security", "pii", "gdpr", "compliant"]
+
+  # --- Use Cases ---
+  - question: "What's the best first use case to demo Deepline's power?"
+    answer: "Waterfall enrichment is the fastest win — plug in your provider keys, run one enrichment call, and see data come back from whichever provider has it. Most teams find 30-40% more data than any single provider. From there, add ICP scoring and reply automation."
+    keywords: ["first", "use case", "demo", "start", "best", "power", "try"]
+
+  - question: "What does Deepline do when a customer has the pipes but no idea where to point them?"
+    answer: "We help with that too. Our ICP scoring framework lets you define your ideal customer profile in YAML and score every lead against it. Combined with enrichment data, it tells you exactly who to reach out to and why — not just how."
+    keywords: ["pipes", "direction", "icp", "target", "who", "point"]
+
+  # --- Competitive Context ---
+  - question: "I already built my own system with Claude/MCPs"
+    answer: "That's awesome — you're exactly our kind of user. Deepline isn't trying to replace what you've built. Think of us as the data layer underneath: waterfall enrichment across 20+ providers, so you don't need to manage each API yourself. Your agents call Deepline instead of calling Apollo, Prospeo, LeadMagic separately."
+    keywords: ["already built", "own system", "claude", "mcp", "own", "built my"]
+
+  - question: "We're using Apollo/Prospeo for enrichment already"
+    answer: "Great — you can bring those keys into Deepline and keep using them. The difference is waterfall: if Apollo doesn't have an email, we automatically try Prospeo, then LeadMagic, then the next provider. One call, best result. Most teams find 30-40% more data with zero extra work."
+    keywords: ["apollo", "prospeo", "already", "use", "using", "have"]
+
+  - question: "We use n8n/Make.com for automation"
+    answer: "Deepline complements those tools — we're not a workflow builder, we're the data layer. Call our API from n8n or Make.com to enrich leads, score them against your ICP, and route qualified ones to your CRM. We handle the enrichment complexity, you keep your workflow orchestration."
+    keywords: ["n8n", "make", "automation", "workflow", "zapier"]
