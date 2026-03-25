@@ -392,6 +392,10 @@ async function ensureTrackingTable(): Promise<void> {
       PRIMARY KEY (event_row_id, app_id)
     )`
   );
+  // If the table existed before app_id was added, add the column now
+  await writeQuery(
+    `ALTER TABLE inbound.processed_webhook_events ADD COLUMN IF NOT EXISTS app_id TEXT NOT NULL DEFAULT 'replybot'`
+  ).catch(() => {});
 }
 
 async function markProcessed(
