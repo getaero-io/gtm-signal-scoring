@@ -88,7 +88,7 @@ ${opts.originalMessage}`);
 **Messaging Angle:** ${persona.messaging_angle}`);
   }
 
-  const elevatorPitch = messaging?.company?.elevator_pitch || messaging?.value_proposition || "";
+  const elevatorPitch = messaging?.company?.elevator_pitch || (messaging as any)?.value_proposition || "";
   const toneGuidelines = messaging?.tone_guidelines || [];
   if (elevatorPitch) {
     sections.push(`## Company Positioning\n${elevatorPitch}${toneGuidelines.length > 0 ? `\n\n**Tone Guidelines:** ${toneGuidelines.join(". ")}` : ""}`);
