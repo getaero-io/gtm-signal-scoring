@@ -8,6 +8,7 @@ const PUBLIC_ROUTES = [
   '/api/outbound/health',
   '/api/cron/',
   '/api/events/process',
+  '/api/events/ingest',
   '/api/send-reply',
   '/api/signals/',
 ];

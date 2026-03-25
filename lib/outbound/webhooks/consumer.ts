@@ -113,6 +113,7 @@ function isReplyEvent(eventType: string): boolean {
     "reply",
     "email_replied",
     "email_reply",
+    "emailsreplied",
     "reply_received",
     "linkedinreplied",
     "linkedin_replied",
