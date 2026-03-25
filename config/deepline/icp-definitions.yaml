@@ -1,0 +1,66 @@
+# ICP Definitions for Deepline
+# Target: B2B SaaS companies needing data infrastructure, enrichment, and automation
+
+deepline_core:
+  name: "Deepline Core ICP"
+  description: "B2B companies with data integration, enrichment, and GTM automation needs"
+
+  scoring:
+    - category: "company_fit"
+      weight: 30
+      rules:
+        - signal: "company_name"
+          operator: "regex"
+          value: "(saas|software|tech|data|ai|automation|platform)"
+          points: 15
+        - signal: "company_domain"
+          operator: "regex"
+          value: "\\.(io|ai|dev|tech|co)$"
+          points: 10
+        - signal: "title"
+          operator: "regex"
+          value: "(founder|ceo|cto|vp|head|director|lead)"
+          points: 20
+
+    - category: "intent_signals"
+      weight: 30
+      rules:
+        - signal: "status"
+          operator: "equals"
+          value: "replied"
+          points: 25
+        - signal: "source"
+          operator: "in"
+          value: ["linkedin", "lemlist", "smartlead"]
+          points: 10
+
+    - category: "reachability"
+      weight: 20
+      rules:
+        - signal: "email"
+          operator: "regex"
+          value: "@"
+          points: 15
+        - signal: "linkedin_url"
+          operator: "regex"
+          value: "linkedin\\.com"
+          points: 10
+
+    - category: "engagement"
+      weight: 20
+      rules:
+        - signal: "qualification_score"
+          operator: "gte"
+          value: 50
+          points: 20
+
+  thresholds:
+    qualified: 45
+    nurture: 25
+
+  anti_fit:
+    - signal: "email"
+      operator: "regex"
+      value: "(gmail|yahoo|hotmail|outlook)\\."
+      penalty: -10
+      flag: "personal_email"

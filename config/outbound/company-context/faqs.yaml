@@ -1,0 +1,74 @@
+# Frequently Asked Questions for Spring Cash
+# Matched by keyword against prospect replies to inject relevant answers into LLM prompt.
+
+faqs:
+  - question: "How long does funding take?"
+    answer: >
+      Typically 5-10 business days from completed application to funding.
+      Once approved, subsequent draws can be faster as the relationship is established.
+    keywords: ["how long", "timeline", "how fast", "turnaround", "when can", "how quickly", "time to fund"]
+
+  - question: "What are the interest rates / fees?"
+    answer: >
+      Spring Cash provides PO-specific working capital, not traditional loans.
+      Pricing is structured as a flat fee on the funded amount, typically 2-5%
+      depending on the retailer, payment terms, and brand profile. No compounding
+      interest, no hidden fees.
+    keywords: ["rate", "interest", "cost", "fee", "pricing", "how much", "expensive", "cheap", "affordable"]
+
+  - question: "How much can we get funded?"
+    answer: >
+      Funding amounts are tied to your purchase orders. We've funded individual
+      POs from $50K to $10M+. The limit is based on the PO value and the
+      retailer's creditworthiness, not your company's balance sheet.
+    keywords: ["how much", "funding amount", "limit", "maximum", "minimum", "size"]
+
+  - question: "What retailers do you work with?"
+    answer: >
+      We work with all major US retailers including Costco, Walmart, Target,
+      Kroger, Whole Foods, Sprouts, H-E-B, Publix, and many more. If the
+      retailer has a purchase order, we can likely fund it.
+    keywords: ["retailer", "which stores", "costco", "walmart", "target", "kroger", "whole foods"]
+
+  - question: "Do we need to give up equity?"
+    answer: >
+      No. Spring Cash is non-dilutive working capital. You keep 100% of your
+      equity. We fund against your purchase orders, not your cap table.
+    keywords: ["equity", "dilutive", "dilution", "shares", "ownership", "venture", "vc"]
+
+  - question: "What do you need to apply?"
+    answer: >
+      We need (1) a signed purchase order from a retail buyer, (2) basic
+      financial info about your brand, and (3) production cost estimates.
+      No lengthy financial audits or personal guarantees required.
+    keywords: ["apply", "application", "requirements", "documents", "need to provide", "get started", "qualify"]
+
+  - question: "Is this a loan?"
+    answer: >
+      Not exactly. Spring Cash provides PO-based working capital — we advance
+      funds against a specific purchase order and are repaid when the retailer
+      pays. It's more like factoring or PO financing than a traditional loan.
+      No long-term debt on your balance sheet.
+    keywords: ["loan", "debt", "borrow", "credit", "financing type"]
+
+  - question: "What if the retailer doesn't pay?"
+    answer: >
+      We underwrite the retailer, not just your brand. Major retailers like
+      Costco, Walmart, and Target have strong payment histories. In the rare
+      case of a payment issue, we work with you and the retailer to resolve it.
+    keywords: ["risk", "default", "doesn't pay", "what if", "guarantee", "recourse"]
+
+  - question: "Can we use this for DTC / e-commerce orders?"
+    answer: >
+      Spring Cash is specifically designed for retail purchase orders from
+      established retailers. We don't currently fund DTC or e-commerce
+      inventory. If you have a retail PO, we'd love to talk.
+    keywords: ["dtc", "direct to consumer", "e-commerce", "ecommerce", "online", "shopify", "amazon"]
+
+  - question: "How is this different from a bank line of credit?"
+    answer: >
+      Banks require 2+ years of financials, personal guarantees, and often
+      won't lend to emerging brands. Spring Cash underwrites the PO and the
+      retailer — so even pre-revenue brands with a strong first PO can qualify.
+      Faster approval, no personal guarantee, no long-term commitment.
+    keywords: ["bank", "line of credit", "loc", "traditional", "different", "compare", "vs"]

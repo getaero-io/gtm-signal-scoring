@@ -1,0 +1,16 @@
+personas:
+  - name: "Technical Founder"
+    titles: ["founder", "ceo", "cto", "co-founder", "technical co-founder"]
+    messaging_focus: "Emphasize technical capabilities, API-first design, and developer experience"
+
+  - name: "Head of Growth"
+    titles: ["head of growth", "vp growth", "growth lead", "head of marketing", "vp marketing"]
+    messaging_focus: "Focus on GTM automation, lead quality improvement, and pipeline velocity"
+
+  - name: "RevOps Leader"
+    titles: ["revops", "revenue operations", "head of sales ops", "sales operations"]
+    messaging_focus: "Highlight workflow automation, CRM integrations, and data quality"
+
+  - name: "Sales Leader"
+    titles: ["vp sales", "head of sales", "sales director", "chief revenue officer"]
+    messaging_focus: "Emphasize pipeline impact, lead scoring accuracy, and rep productivity"

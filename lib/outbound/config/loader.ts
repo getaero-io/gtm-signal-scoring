@@ -1,12 +1,14 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { parse } from "yaml";
+import { existsSync } from "fs";
 import type {
   ICPDefinition, QualificationRule, RoutingConfig, ResponseTemplate,
-  Persona, MessagingFramework, UseCase, Reference, ProofPoint, AppConfig,
+  Persona, MessagingFramework, UseCase, Reference, ProofPoint, Faq, AppConfig,
 } from "./types";
 
-const CONFIG_DIR = join(process.cwd(), "config", "outbound");
+const tenant = process.env.TENANT_CONFIG_DIR || "outbound";
+const CONFIG_DIR = join(process.cwd(), "config", tenant);
 const COMPANY_CONTEXT_DIR = join(CONFIG_DIR, "company-context");
 
 function loadYaml<T>(filename: string): T {
@@ -35,6 +37,11 @@ export function loadConfig(forceReload = false): AppConfig {
   const referencesRaw = loadCompanyYaml<{ references: Reference[] }>("references.yaml");
   const proofPointsRaw = loadCompanyYaml<{ proof_points: ProofPoint[] }>("proof-points.yaml");
 
+  const faqsPath = join(COMPANY_CONTEXT_DIR, "faqs.yaml");
+  const faqsRaw = existsSync(faqsPath)
+    ? loadCompanyYaml<{ faqs: Faq[] }>("faqs.yaml")
+    : { faqs: [] };
+
   cachedConfig = {
     icp_definitions,
     qualification_rules: qualRaw.rules,
@@ -46,6 +53,7 @@ export function loadConfig(forceReload = false): AppConfig {
       use_cases: useCasesRaw.use_cases,
       references: referencesRaw.references,
       proof_points: proofPointsRaw.proof_points,
+      faqs: faqsRaw.faqs,
     },
   };
 

@@ -1,0 +1,12 @@
+faqs:
+  - question: "How does Deepline's enrichment work?"
+    answer: "We route your enrichment requests through multiple providers in a waterfall pattern — trying each source in priority order until we find the data you need. One API call, best available data."
+    keywords: ["how", "enrichment", "work", "data"]
+
+  - question: "What integrations do you support?"
+    answer: "We integrate with 20+ enrichment providers, CRMs (Attio, HubSpot), outbound tools (Lemlist, SmartLead, HeyReach), and messaging platforms (Slack). Everything is API-first."
+    keywords: ["integrate", "integration", "connect", "crm", "tools"]
+
+  - question: "How does the reply automation work?"
+    answer: "When someone replies to your outbound campaign, we draft an LLM-powered response using your company context and ICP data, then post it to Slack for your team to approve, edit, or reject before sending."
+    keywords: ["reply", "automation", "outbound", "draft", "llm"]

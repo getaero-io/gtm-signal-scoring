@@ -13,7 +13,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
 import { markSent, markFailed, claimForSending } from "@/lib/outbound/safety/message-queue";
 import {
   sendReply,
@@ -114,5 +113,23 @@ async function handler(req: NextRequest) {
   }
 }
 
-// QStash signature verification wraps the handler
-export const POST = verifySignatureAppRouter(handler);
+// Dynamic QStash signature verification — skips if signing keys not configured
+let wrappedHandler: typeof handler | null = null;
+
+async function getHandler() {
+  if (!wrappedHandler) {
+    if (process.env.QSTASH_CURRENT_SIGNING_KEY) {
+      const { verifySignatureAppRouter } = await import("@upstash/qstash/nextjs");
+      wrappedHandler = verifySignatureAppRouter(handler) as unknown as typeof handler;
+    } else {
+      console.warn("[send-reply] QStash signing keys not configured — skipping signature verification");
+      wrappedHandler = handler;
+    }
+  }
+  return wrappedHandler;
+}
+
+export async function POST(req: NextRequest) {
+  const h = await getHandler();
+  return h(req);
+}

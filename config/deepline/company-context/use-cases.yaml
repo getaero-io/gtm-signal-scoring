@@ -1,0 +1,16 @@
+use_cases:
+  - name: "Waterfall Enrichment"
+    description: "Route enrichment requests through multiple providers in priority order until data is found"
+    keywords: ["enrichment", "data", "email", "phone", "contact"]
+
+  - name: "Inbound Lead Scoring"
+    description: "Automatically score and qualify inbound leads against your ICP using AI + enrichment signals"
+    keywords: ["scoring", "qualify", "inbound", "leads", "ICP"]
+
+  - name: "Outbound Reply Automation"
+    description: "LLM-drafted responses to outbound campaign replies with Slack approval workflow"
+    keywords: ["outbound", "reply", "automate", "campaign", "email"]
+
+  - name: "CRM Sync"
+    description: "Bi-directional sync between enrichment data and your CRM (Attio, HubSpot)"
+    keywords: ["crm", "sync", "attio", "hubspot", "salesforce"]

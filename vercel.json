@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "deploymentProtection": {
-    "production": "none"
-  }
+  "crons": [
+    { "path": "/api/cron/bump-stale-drafts", "schedule": "0 */12 * * *" },
+    { "path": "/api/cron/process-webhook-events", "schedule": "*/2 * * * *" }
+  ]
 }
