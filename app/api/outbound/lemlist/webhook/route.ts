@@ -44,6 +44,6 @@ export async function POST(req: NextRequest) {
         errorMessage: (err as Error).message,
       }).catch(() => {});
     }
-    return NextResponse.json({ ok: true, error: 'Internal error' });
+    return NextResponse.json({ ok: true, error: 'Internal error', detail: (err as Error).message });
   }
 }
