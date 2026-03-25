@@ -1,5 +1,5 @@
 references:
   - name: "Spring Cash"
-    industry: "CPG / DTC Finance"
-    use_case: "Full inbound + outbound automation with ICP scoring"
-    result: "Automated lead qualification and reply drafting for outbound campaigns"
+    type: "customer"
+    content: "Spring Cash (CPG/DTC finance) uses Deepline for full inbound + outbound automation with ICP scoring — automated lead qualification and reply drafting across 15,000+ leads"
+    when_to_use: "When prospect asks about real-world usage or CPG/DTC customers"

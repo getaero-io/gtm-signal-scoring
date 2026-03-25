@@ -82,10 +82,14 @@ ${opts.originalMessage}`);
   }
 
   if (persona) {
-    sections.push(`## Persona: ${persona.name}
-**Pain Points:** ${persona.pain_points.join("; ")}
-**Motivations:** ${persona.motivations.join("; ")}
-**Messaging Angle:** ${persona.messaging_angle}`);
+    const painPoints = persona.pain_points?.length ? persona.pain_points.join("; ") : (persona as any).messaging_focus || "";
+    const motivations = persona.motivations?.length ? persona.motivations.join("; ") : "";
+    const angle = persona.messaging_angle || (persona as any).messaging_focus || "";
+    const personaParts = [`## Persona: ${persona.name}`];
+    if (painPoints) personaParts.push(`**Pain Points:** ${painPoints}`);
+    if (motivations) personaParts.push(`**Motivations:** ${motivations}`);
+    if (angle) personaParts.push(`**Messaging Angle:** ${angle}`);
+    sections.push(personaParts.join("\n"));
   }
 
   const elevatorPitch = messaging?.company?.elevator_pitch || (messaging as any)?.value_proposition || "";
@@ -104,13 +108,13 @@ ${opts.originalMessage}`);
 
   const refs = opts.companyContext.references || [];
   if (refs.length > 0) {
-    const refList = refs.map((r: any) => `- ${r.content || r.description || JSON.stringify(r)}`).join("\n");
+    const refList = refs.map((r: any) => `- ${r.content || r.result || r.description || JSON.stringify(r)}`).join("\n");
     sections.push(`## Key Stats & References\n${refList}`);
   }
 
   const proofs = opts.companyContext.proof_points || [];
   if (proofs.length > 0) {
-    const proofList = proofs.map((p: any) => `- ${p.quotable_result || p.result || p.description || JSON.stringify(p)}`).join("\n");
+    const proofList = proofs.map((p: any) => `- ${p.quotable_result || p.claim || p.result || p.description || JSON.stringify(p)}`).join("\n");
     sections.push(`## Proof Points\n${proofList}`);
   }
 
@@ -124,6 +128,18 @@ ${opts.originalMessage}`);
       .map((uc: any) => `- **${uc.title || uc.name || ""}**: ${(uc.spring_cash_role || uc.description || "").trim().split("\n")[0]}`)
       .join("\n");
     sections.push(`## Relevant Use Cases\n${caseList}`);
+  }
+
+  // FAQ matching — include relevant Q&As the LLM can draw from
+  const faqs = opts.companyContext.faqs || [];
+  const matchedFaqs = faqs.filter((faq: any) =>
+    (faq.keywords || []).some((kw: string) => replyLower.includes(kw.toLowerCase()))
+  );
+  if (matchedFaqs.length > 0) {
+    const faqList = matchedFaqs
+      .map((faq: any) => `**Q: ${faq.question}**\nA: ${faq.answer}`)
+      .join("\n\n");
+    sections.push(`## Relevant FAQs\n${faqList}`);
   }
 
   const objections = messaging?.objection_handling || [];
