@@ -14,9 +14,9 @@ export interface WebhookEventInput {
 export async function logWebhookEvent(input: WebhookEventInput): Promise<number> {
   const status = input.status ?? 'received';
 
-  const rows = await writeQuery<{ id: number }>(
+  const rows = await writeQuery<{ id: string }>(
     `INSERT INTO inbound.webhook_events
-       (source, event_type, raw_payload, status, lead_id, conversation_id, processing_result, error_message)
+       (source, event_type, raw_payload, status, lead_id, conversation_id, error_message, metadata)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING id`,
     [
@@ -26,12 +26,12 @@ export async function logWebhookEvent(input: WebhookEventInput): Promise<number>
       status,
       input.leadId ?? null,
       input.conversationId ?? null,
-      input.processingResult ? JSON.stringify(input.processingResult) : null,
       input.errorMessage ?? null,
+      input.processingResult ? JSON.stringify(input.processingResult) : '{}',
     ]
   );
 
-  return rows[0].id;
+  return Number(rows[0].id) || 0;
 }
 
 export async function updateWebhookEvent(
@@ -49,12 +49,12 @@ export async function updateWebhookEvent(
   await writeQuery(
     `UPDATE inbound.webhook_events
      SET status = $1,
-         lead_id = COALESCE($2, lead_id),
+         lead_id = COALESCE($2::uuid, lead_id),
          conversation_id = COALESCE($3, conversation_id),
-         processing_result = COALESCE($4, processing_result),
+         metadata = COALESCE($4::jsonb, metadata),
          error_message = COALESCE($5, error_message),
          processed_at = CASE WHEN $6 THEN NOW() ELSE processed_at END
-     WHERE id = $7`,
+     WHERE id = $7::uuid`,
     [
       update.status,
       update.leadId ?? null,
