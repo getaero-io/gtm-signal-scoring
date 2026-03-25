@@ -1,0 +1,200 @@
+# Spring Cash ICP Definitions
+# Spring Cash helps small CPG brands land first purchase orders at major retailers
+# like Costco, Walmart, Target. Their ideal customer is an emerging brand that
+# needs working capital to fulfill their first retail orders.
+
+spring_cash:
+  name: "Spring Cash - Emerging CPG Brand"
+  description: >
+    Emerging consumer packaged goods brands that are early in their retail
+    distribution journey. These companies have 0-4 retail partners and need
+    working capital to fulfill their first purchase orders at major retailers.
+    Spring Cash has raised $345M to provide working capital for these brands.
+
+  scoring:
+    - category: "emergence_youth"
+      weight: 30
+      rules:
+        - signal: "domain_age_years"
+          operator: "lt"
+          value: 3
+          points: 100
+        - signal: "domain_age_years"
+          operator: "lt"
+          value: 5
+          points: 80
+        - signal: "domain_age_years"
+          operator: "lt"
+          value: 8
+          points: 50
+        - signal: "domain_age_years"
+          operator: "lt"
+          value: 12
+          points: 25
+        - signal: "expo_exhibitor"
+          operator: "equals"
+          value: true
+          points: 30
+        - signal: "expo_name"
+          operator: "in"
+          value:
+            - "Expo West"
+            - "Expo East"
+            - "Fancy Food Show"
+            - "NACS Show"
+            - "Sweets & Snacks Expo"
+          points: 25
+        - signal: "linkedin_employee_count"
+          operator: "lt"
+          value: 50
+          points: 20
+        - signal: "linkedin_employee_count"
+          operator: "lt"
+          value: 20
+          points: 15
+
+    - category: "first_po_readiness"
+      weight: 30
+      rules:
+        - signal: "retailer_count"
+          operator: "equals"
+          value: 0
+          points: 100
+        - signal: "retailer_count"
+          operator: "lte"
+          value: 2
+          points: 90
+        - signal: "retailer_count"
+          operator: "lte"
+          value: 4
+          points: 70
+        - signal: "retailer_count"
+          operator: "lte"
+          value: 6
+          points: 40
+        - signal: "retailer_count"
+          operator: "lte"
+          value: 7
+          points: 20
+        - signal: "has_ecommerce"
+          operator: "equals"
+          value: true
+          points: 15
+        - signal: "is_cpg"
+          operator: "equals"
+          value: true
+          points: 30
+        - signal: "sells_retail"
+          operator: "equals"
+          value: true
+          points: 20
+
+    - category: "reachability"
+      weight: 20
+      rules:
+        - signal: "email_valid"
+          operator: "equals"
+          value: true
+          points: 50
+        - signal: "founder_identified"
+          operator: "equals"
+          value: true
+          points: 40
+        - signal: "linkedin_url"
+          operator: "regex"
+          value: "linkedin\\.com/in/.+"
+          points: 30
+        - signal: "phone_available"
+          operator: "equals"
+          value: true
+          points: 20
+        - signal: "title"
+          operator: "regex"
+          value: "(?i)(founder|ceo|owner|co-founder|president)"
+          points: 25
+
+    - category: "retailer_fit"
+      weight: 20
+      rules:
+        - signal: "retailers_list"
+          operator: "contains"
+          value: "Costco"
+          points: 100
+        - signal: "retailers_list"
+          operator: "contains"
+          value: "Walmart"
+          points: 90
+        - signal: "retailers_list"
+          operator: "contains"
+          value: "Target"
+          points: 85
+        - signal: "retailers_list"
+          operator: "contains"
+          value: "Kroger"
+          points: 80
+        - signal: "retailers_list"
+          operator: "contains"
+          value: "Whole Foods"
+          points: 75
+        - signal: "retailers_list"
+          operator: "contains"
+          value: "Sprouts"
+          points: 70
+        - signal: "retailers_list"
+          operator: "contains"
+          value: "HEB"
+          points: 65
+        - signal: "retailers_list"
+          operator: "contains"
+          value: "Publix"
+          points: 60
+        - signal: "retailers_list"
+          operator: "contains"
+          value: "Albertsons"
+          points: 55
+        - signal: "pending_retailer"
+          operator: "equals"
+          value: true
+          points: 40
+
+  thresholds:
+    qualified: 60
+    nurture: 30
+
+  anti_fit:
+    - signal: "domain_age_years"
+      operator: "gte"
+      value: 20
+      penalty: -40
+      flag: "established_brand_likely_not_emerging"
+    - signal: "retailer_count"
+      operator: "gte"
+      value: 8
+      penalty: -30
+      flag: "already_well_distributed"
+    - signal: "retailer_count"
+      operator: "gte"
+      value: 10
+      penalty: -50
+      flag: "mature_distribution_network"
+    - signal: "linkedin_employee_count"
+      operator: "gte"
+      value: 500
+      penalty: -35
+      flag: "large_company_not_emerging"
+    - signal: "industry"
+      operator: "not_in"
+      value:
+        - "Consumer Goods"
+        - "Food & Beverage"
+        - "Health & Wellness"
+        - "Beauty & Personal Care"
+        - "Pet Products"
+        - "Household Products"
+      penalty: -50
+      flag: "non_cpg_industry"
+    - signal: "is_cpg"
+      operator: "equals"
+      value: false
+      penalty: -60
+      flag: "not_a_cpg_brand"

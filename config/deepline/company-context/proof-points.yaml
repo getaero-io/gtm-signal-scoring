@@ -1,0 +1,9 @@
+proof_points:
+  - claim: "Unified enrichment reduces tool spend by 60%"
+    context: "Customers replacing multiple enrichment vendors with Deepline's waterfall approach"
+
+  - claim: "Reply drafting saves 2+ hours per day per SDR"
+    context: "LLM-powered drafts with context-aware templates and human approval"
+
+  - claim: "Lead scoring accuracy improves by 3x with signal stacking"
+    context: "Combining multiple enrichment signals vs single-source scoring"

@@ -1,0 +1,12 @@
+value_proposition: "Deepline is the data infrastructure layer for GTM teams — unified enrichment, intelligent lead routing, and automated outbound workflows."
+
+key_messages:
+  - "Replace 5+ point solutions with one unified data layer"
+  - "Waterfall enrichment across 20+ providers with one API call"
+  - "Automated lead scoring and routing based on your ICP"
+  - "LLM-powered reply drafting with human-in-the-loop approval"
+
+differentiators:
+  - "API-first: everything is programmable"
+  - "Provider-agnostic: works with any enrichment source, CRM, or outbound tool"
+  - "Signal stacking: combines multiple data points for higher confidence"

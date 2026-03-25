@@ -1,0 +1,18 @@
+# Qualification Rules for Deepline
+rules:
+  - name: "b2b_saas_qualification"
+    description: "Qualify B2B SaaS companies with data/automation needs"
+    initial_filters:
+      - field: "email"
+        operator: "regex"
+        value: "@.+\\..+"
+    website_analysis:
+      enabled: true
+      prompt: "Analyze this company website. Determine if they are a B2B SaaS company that could benefit from data enrichment, GTM automation, or integration infrastructure. Look for indicators like: API documentation, integrations page, pricing tiers, B2B focus."
+      extract_fields:
+        - product_description
+        - is_b2b_saas
+        - has_integrations
+        - company_size_indicator
+        - tech_stack_indicators
+    icp_ref: "deepline_core"

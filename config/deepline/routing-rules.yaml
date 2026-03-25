@@ -1,0 +1,41 @@
+# Routing Rules for Deepline
+default_channel: "#deepline-signals"
+rep_assignment: "round_robin"
+
+reps:
+  - name: "Tej Singh"
+    slack_id: "U_TEJ"
+  - name: "Jai Toor"
+    slack_id: "U_JAI"
+
+rules:
+  - name: "qualified_to_rep"
+    conditions:
+      - field: "status"
+        operator: "equals"
+        value: "qualified"
+    action: "assign_rep"
+    params:
+      slack_channel: "#deepline-qualified"
+      attio_status: "qualified"
+
+  - name: "nurture_to_campaign"
+    conditions:
+      - field: "status"
+        operator: "equals"
+        value: "nurture"
+    action: "nurture_campaign"
+    params:
+      slack_channel: "#deepline-nurture"
+      lemlist_campaign: "deepline-nurture"
+      attio_status: "nurture"
+
+  - name: "high_score_alert"
+    conditions:
+      - field: "qualification_score"
+        operator: "gte"
+        value: 80
+    action: "slack_alert"
+    params:
+      slack_channel: "#deepline-hot-leads"
+      message_prefix: "High-score lead detected"

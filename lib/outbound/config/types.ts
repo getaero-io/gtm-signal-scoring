@@ -118,12 +118,19 @@ export interface ProofPoint {
   quotable_result: string;
 }
 
+export interface Faq {
+  question: string;
+  answer: string;
+  keywords: string[];
+}
+
 export interface CompanyContext {
   personas: Persona[];
   messaging: MessagingFramework;
   use_cases: UseCase[];
   references: Reference[];
   proof_points: ProofPoint[];
+  faqs: Faq[];
 }
 
 export interface AppConfig {

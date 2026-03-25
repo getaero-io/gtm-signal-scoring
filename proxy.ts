@@ -7,9 +7,11 @@ const PUBLIC_ROUTES = [
   '/api/outbound/slack/events',
   '/api/inbound',
   '/api/outbound/health',
+  '/api/cron/',
+  '/api/send-reply',
 ];
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Skip routes that have their own auth
