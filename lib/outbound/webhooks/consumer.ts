@@ -165,13 +165,18 @@ async function processReplyEvent(
   const companyName = raw.company || "Unknown Company";
   const sourcePlatform = raw.source_platform || "unknown";
 
-  // Upsert lead
-  const existingLead = raw.email
-    ? await query<{ id: string }>(
-        `SELECT id FROM inbound.leads WHERE email = $1`,
-        [raw.email]
-      ).then(r => r[0] ?? null)
-    : null;
+  // Upsert lead — try email first, then linkedin_url for LinkedIn-only replies
+  let existingLead: { id: string } | null = null;
+  if (raw.email) {
+    existingLead = await query<{ id: string }>(
+      `SELECT id FROM inbound.leads WHERE email = $1`, [raw.email]
+    ).then(r => r[0] ?? null);
+  }
+  if (!existingLead && raw.linkedin_url) {
+    existingLead = await query<{ id: string }>(
+      `SELECT id FROM inbound.leads WHERE metadata->>'linkedin_url' = $1`, [raw.linkedin_url]
+    ).then(r => r[0] ?? null);
+  }
 
   let leadId: string;
   if (existingLead) {
@@ -187,6 +192,8 @@ async function processReplyEvent(
       [raw.first_name, raw.last_name, companyName, prospectName, leadId]
     );
   } else {
+    // For LinkedIn-only replies, generate a placeholder email since the column is NOT NULL
+    const leadEmail = raw.email || (raw.linkedin_url ? `linkedin-${event.row_id.slice(0, 8)}@placeholder.local` : `unknown-${event.row_id.slice(0, 8)}@placeholder.local`);
     const rows = await writeQuery<{ id: string }>(
       `INSERT INTO inbound.leads (id, full_name, first_name, last_name, email, company, company_name, source, status, metadata)
        VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $5, $6, 'replied', $7)
@@ -195,7 +202,7 @@ async function processReplyEvent(
         prospectName,
         raw.first_name || null,
         raw.last_name || null,
-        raw.email || null,
+        leadEmail,
         companyName,
         sourcePlatform,
         JSON.stringify({
