@@ -51,11 +51,22 @@ export interface RoutingRule {
   params: Record<string, string>;
 }
 
+export interface HubSpotRoutingConfig {
+  pipeline_id: string;
+  stages: {
+    qualified: string;
+    nurture: string;
+    hot: string;
+  };
+  owner_mapping: Record<string, string>;
+}
+
 export interface RoutingConfig {
   default_channel: string;
   rep_assignment: "round_robin" | "manual" | "territory";
-  reps: { name: string; slack_id: string; territory?: string }[];
+  reps: { name: string; slack_id: string; email?: string; territory?: string }[];
   rules: RoutingRule[];
+  hubspot?: HubSpotRoutingConfig;
 }
 
 export interface ResponseTemplate {

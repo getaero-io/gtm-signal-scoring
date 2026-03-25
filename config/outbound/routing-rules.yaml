@@ -7,8 +7,20 @@ rep_assignment: "round_robin"
 reps:
   - name: "Tej Singh"
     slack_id: "U_TEJ"
+    email: "tej@springcash.com"
   - name: "Jai Toor"
     slack_id: "U_JAI"
+    email: "jai@springcash.com"
+
+hubspot:
+  pipeline_id: "default"  # Replace with actual pipeline ID
+  stages:
+    qualified: "qualifiedtobuy"      # Stage ID for qualified leads
+    nurture: "appointmentscheduled"   # Stage ID for nurture leads
+    hot: "decisionmakerboughtin"      # Stage ID for hot leads (score >= 80)
+  owner_mapping:
+    tej_singh: "HUBSPOT_OWNER_ID_TEJ"   # Replace with actual owner IDs
+    jai_toor: "HUBSPOT_OWNER_ID_JAI"
 
 rules:
   - name: "qualified_to_rep"

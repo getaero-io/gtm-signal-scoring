@@ -1,37 +1,55 @@
 /**
  * HubSpot CRM Integration for Outbound Flow
  *
- * Syncs leads/contacts to HubSpot when they are qualified, approved, or routed.
- * Uses the HubSpot CRM v3 API directly (no SDK dependency).
+ * Routes ALL HubSpot operations through the Deepline gateway API
+ * (POST /api/v2/integrations/execute with provider: "hubspot").
  *
  * Requires:
  *   ENABLE_HUBSPOT=true
- *   HUBSPOT_ACCESS_TOKEN=pat-na1-...
+ *   DEEPLINE_API_KEY=...
  */
 
 import { isPluginEnabled } from '@/lib/integrations/plugins/registry';
 
-const HUBSPOT_API = 'https://api.hubapi.com';
+const DEEPLINE_API_URL =
+  'https://code.deepline.com/api/v2/integrations/execute';
 
-async function hubspotRequest<T = unknown>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = process.env.HUBSPOT_ACCESS_TOKEN;
-  if (!token) throw new Error('HUBSPOT_ACCESS_TOKEN not configured');
+function getDeeplineApiKey(): string {
+  const key = process.env.DEEPLINE_API_KEY;
+  if (!key) throw new Error('DEEPLINE_API_KEY environment variable is not set');
+  return key;
+}
 
-  const res = await fetch(`${HUBSPOT_API}${path}`, {
-    ...options,
+interface DeeplineResponse<T = unknown> {
+  result: T;
+}
+
+async function deeplineHubSpot<T = unknown>(
+  operation: string,
+  payload: Record<string, unknown>
+): Promise<T> {
+  const res = await fetch(DEEPLINE_API_URL, {
+    method: 'POST',
     headers: {
-      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
-      ...options.headers,
+      Authorization: `Bearer ${getDeeplineApiKey()}`,
     },
+    body: JSON.stringify({
+      provider: 'hubspot',
+      operation,
+      payload,
+    }),
   });
 
   if (!res.ok) {
     const body = await res.text().catch(() => 'unknown');
-    throw new Error(`HubSpot API error ${res.status}: ${body.slice(0, 300)}`);
+    throw new Error(
+      `Deepline HubSpot ${operation} failed (${res.status}): ${body.slice(0, 300)}`
+    );
   }
 
-  return res.json() as Promise<T>;
+  const data = (await res.json()) as DeeplineResponse<T>;
+  return data.result;
 }
 
 interface HubSpotSearchResult {
@@ -56,9 +74,9 @@ export async function upsertHubSpotContact(opts: {
 
   try {
     // Search for existing contact by email
-    const searchResult = await hubspotRequest<HubSpotSearchResult>('/crm/v3/objects/contacts/search', {
-      method: 'POST',
-      body: JSON.stringify({
+    const searchResult = await deeplineHubSpot<HubSpotSearchResult>(
+      'search_contacts',
+      {
         filterGroups: [
           {
             filters: [
@@ -67,8 +85,8 @@ export async function upsertHubSpotContact(opts: {
           },
         ],
         properties: ['email', 'firstname', 'lastname'],
-      }),
-    });
+      }
+    );
 
     const properties: Record<string, string> = {
       email: opts.email,
@@ -78,22 +96,23 @@ export async function upsertHubSpotContact(opts: {
     if (opts.company) properties.company = opts.company;
     if (opts.jobTitle) properties.jobtitle = opts.jobTitle;
     if (opts.leadStatus) properties.hs_lead_status = opts.leadStatus;
-    if (opts.qualificationScore != null) properties.gtm_qualification_score = String(opts.qualificationScore);
+    if (opts.qualificationScore != null)
+      properties.gtm_qualification_score = String(opts.qualificationScore);
     if (opts.source) properties.gtm_lead_source = opts.source;
 
     let contactId: string;
 
     if (searchResult.results?.length > 0) {
       contactId = searchResult.results[0].id;
-      await hubspotRequest(`/crm/v3/objects/contacts/${contactId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ properties }),
+      await deeplineHubSpot('update_contact', {
+        contactId,
+        properties,
       });
     } else {
-      const created = await hubspotRequest<{ id: string }>('/crm/v3/objects/contacts', {
-        method: 'POST',
-        body: JSON.stringify({ properties }),
-      });
+      const created = await deeplineHubSpot<{ id: string }>(
+        'create_contact',
+        { properties }
+      );
       contactId = created.id;
     }
 
@@ -114,11 +133,128 @@ export async function updateHubSpotContact(
   if (!isPluginEnabled('hubspot')) return;
 
   try {
-    await hubspotRequest(`/crm/v3/objects/contacts/${contactId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ properties }),
-    });
+    await deeplineHubSpot('update_contact', { contactId, properties });
   } catch (err) {
     console.error('[hubspot] Contact update failed (non-fatal):', err);
+  }
+}
+
+/**
+ * Create a deal in HubSpot associated with a contact and optionally a company.
+ * Returns the deal ID or null on failure.
+ */
+export async function createHubSpotDeal(opts: {
+  contactId: string;
+  companyId?: string;
+  dealName: string;
+  pipeline: string;
+  stage: string;
+  ownerId?: string;
+  properties?: Record<string, string>;
+}): Promise<string | null> {
+  if (!isPluginEnabled('hubspot')) return null;
+
+  try {
+    const props: Record<string, string> = {
+      dealname: opts.dealName,
+      pipeline: opts.pipeline,
+      dealstage: opts.stage,
+      ...opts.properties,
+    };
+    if (opts.ownerId) props.hubspot_owner_id = opts.ownerId;
+
+    const associations = [
+      {
+        to: { id: opts.contactId },
+        types: [
+          { associationCategory: 'HUBSPOT_DEFINED', associationTypeId: 3 },
+        ],
+      },
+      ...(opts.companyId
+        ? [
+            {
+              to: { id: opts.companyId },
+              types: [
+                {
+                  associationCategory: 'HUBSPOT_DEFINED',
+                  associationTypeId: 5,
+                },
+              ],
+            },
+          ]
+        : []),
+    ];
+
+    const result = await deeplineHubSpot<{ id: string }>('create_deal', {
+      properties: props,
+      associations,
+    });
+
+    return result.id;
+  } catch (err) {
+    console.error('[hubspot] Deal creation error:', (err as Error).message);
+    return null;
+  }
+}
+
+/**
+ * Find a HubSpot owner by their email address.
+ * Returns the owner ID or null if not found.
+ */
+export async function findHubSpotOwnerByEmail(
+  email: string
+): Promise<string | null> {
+  if (!isPluginEnabled('hubspot')) return null;
+
+  try {
+    const result = await deeplineHubSpot<{
+      results: Array<{ id: string }>;
+    }>('list_owners', { email, limit: 1 });
+
+    return result.results?.[0]?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Find an existing HubSpot company by domain, or create one if it doesn't exist.
+ * Returns the company ID or null on failure.
+ */
+export async function findOrCreateHubSpotCompany(
+  domain: string,
+  name?: string
+): Promise<string | null> {
+  if (!isPluginEnabled('hubspot')) return null;
+
+  try {
+    // Search by domain
+    const searchResult = await deeplineHubSpot<HubSpotSearchResult>(
+      'search_companies',
+      {
+        filterGroups: [
+          {
+            filters: [
+              { propertyName: 'domain', operator: 'EQ', value: domain },
+            ],
+          },
+        ],
+        limit: 1,
+      }
+    );
+
+    if (searchResult.results?.[0]?.id) return searchResult.results[0].id;
+
+    // Create
+    const created = await deeplineHubSpot<{ id: string }>(
+      'create_company',
+      {
+        properties: { domain, name: name || domain },
+      }
+    );
+
+    return created.id;
+  } catch {
+    return null;
   }
 }

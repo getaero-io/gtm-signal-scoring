@@ -40,6 +40,8 @@ interface EnrichmentEventRow {
   updated_at: string;
 }
 
+export const APP_ID = process.env.APP_ID || "replybot";
+
 export async function processWebhookEvents(): Promise<{
   total: number;
   processed: number;
@@ -51,11 +53,13 @@ export async function processWebhookEvents(): Promise<{
   const events = await query<EnrichmentEventRow>(
     `SELECT e.row_id, e.source, e.doc, e.created_at, e.updated_at
      FROM dl_cache.enrichment_event e
-     LEFT JOIN inbound.processed_webhook_events p ON p.event_row_id = e.row_id
+     LEFT JOIN inbound.processed_webhook_events p
+       ON p.event_row_id = e.row_id AND p.app_id = $1
      WHERE p.event_row_id IS NULL
        AND e.source LIKE 'cache:local:event_tamdb_write:%'
      ORDER BY e.created_at ASC
-     LIMIT 20`
+     LIMIT 20`,
+    [APP_ID]
   );
 
   if (events.length === 0) {
@@ -109,9 +113,11 @@ function isReplyEvent(eventType: string): boolean {
     "reply",
     "email_replied",
     "email_reply",
+    "reply_received",
     "linkedinreplied",
     "linkedin_replied",
     "every message/inmail reply received",
+    "instantly_replied",
   ];
   return replyTypes.includes(eventType.toLowerCase());
 }
@@ -292,12 +298,7 @@ async function processReplyEvent(
 
   // Post to Slack
   const slackChannel = process.env.SLACK_CHANNEL_OUTBOUND || "replybot";
-  const campaignUrl =
-    sourcePlatform === "smartlead"
-      ? `https://app.smartlead.ai/app/email-campaign/${raw.campaign_id || ""}/overview`
-      : sourcePlatform === "heyreach"
-        ? `https://app.heyreach.io/campaigns/${raw.campaign_id || ""}`
-        : `#`;
+  const campaignUrl = getCampaignUrl(sourcePlatform, raw.campaign_id);
 
   const { text, blocks } = formatOutboundReply({
     leadName: prospectName,
@@ -336,13 +337,26 @@ async function processReplyEvent(
   console.log(`[webhook/consumer] Processed ${sourcePlatform} reply from ${raw.email}, conversation: ${convId}`);
 }
 
+function getCampaignUrl(platform: string, campaignId?: string): string {
+  if (!campaignId) return '#';
+  switch (platform) {
+    case 'lemlist': return `https://app.lemlist.com/campaigns/${campaignId}`;
+    case 'smartlead': return `https://app.smartlead.ai/app/email-campaign/${campaignId}/overview`;
+    case 'heyreach': return `https://app.heyreach.io/campaigns/${campaignId}`;
+    case 'instantly': return `https://app.instantly.ai/app/campaigns/${campaignId}`;
+    default: return '#';
+  }
+}
+
 async function ensureTrackingTable(): Promise<void> {
   await writeQuery(
     `CREATE TABLE IF NOT EXISTS inbound.processed_webhook_events (
-      event_row_id UUID PRIMARY KEY,
+      event_row_id UUID NOT NULL,
+      app_id TEXT NOT NULL DEFAULT 'replybot',
       status TEXT NOT NULL DEFAULT 'processed',
       detail TEXT,
-      processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (event_row_id, app_id)
     )`
   );
 }
@@ -353,9 +367,9 @@ async function markProcessed(
   detail?: string
 ): Promise<void> {
   await writeQuery(
-    `INSERT INTO inbound.processed_webhook_events (event_row_id, status, detail)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (event_row_id) DO NOTHING`,
-    [eventRowId, status, detail || null]
+    `INSERT INTO inbound.processed_webhook_events (event_row_id, app_id, status, detail)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (event_row_id, app_id) DO NOTHING`,
+    [eventRowId, APP_ID, status, detail || null]
   );
 }

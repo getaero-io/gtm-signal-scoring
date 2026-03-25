@@ -4,9 +4,9 @@ import { loadConfig } from "../config/loader";
 import type { AppConfig, RoutingRule } from "../config/types";
 import { postMessage } from "../slack/client";
 import { formatQualifiedLead } from "../slack/messages";
-import { upsertAttioPerson } from "../integrations/attio";
+import { upsertAttioPerson, upsertAttioCompany } from "../integrations/attio";
 import { addToCampaign, type OutboundProvider } from "../integrations/deepline-outbound";
-import { upsertHubSpotContact } from "../integrations/hubspot";
+import { upsertHubSpotContact, createHubSpotDeal, findHubSpotOwnerByEmail, findOrCreateHubSpotCompany } from "../integrations/hubspot";
 
 async function queryOne<T>(sql: string, params?: any[]): Promise<T | null> {
   const rows = await query<T>(sql, params);
@@ -26,6 +26,7 @@ interface Lead {
   company_domain: string | null;
   title: string | null;
   status: string;
+  source: string | null;
   assigned_rep: string | null;
   attio_id: string | null;
   campaign_id: string | null;
@@ -50,7 +51,7 @@ interface QualificationResult {
 // Round-robin rep assignment
 // ---------------------------------------------------------------------------
 
-async function getNextRep(config: AppConfig): Promise<{ name: string; slack_id: string }> {
+async function getNextRep(config: AppConfig): Promise<{ name: string; slack_id: string; email?: string }> {
   const reps = config.routing.reps;
   if (!reps.length) throw new Error("No reps configured in routing rules");
 
@@ -151,6 +152,18 @@ async function routeQualified(
     attioId = attioResult.recordId;
   }
 
+  // 5b. Upsert company in Attio (if we have a domain)
+  if (lead.company_domain) {
+    await upsertAttioCompany({
+      domain: lead.company_domain,
+      name: lead.company_name || lead.company_domain,
+      customAttributes: {
+        qualification_score: [{ value: qualResult.score }],
+        lead_status: [{ option: "qualified" }],
+      },
+    }).catch((err) => console.warn('[router] Attio company upsert failed:', err));
+  }
+
   // 6. Upsert contact in HubSpot (non-blocking)
   let hubspotId: string | null = null;
   if (lead.email) {
@@ -165,6 +178,38 @@ async function routeQualified(
       source: 'gtm-signal-scoring',
     });
     hubspotId = hsResult?.contactId ?? null;
+  }
+
+  // 6b. Create HubSpot deal associated with contact + company
+  let hubspotDealId: string | null = null;
+  if (hubspotId) {
+    const companyId = lead.company_domain
+      ? await findOrCreateHubSpotCompany(lead.company_domain, lead.company_name || undefined)
+      : null;
+
+    const hubspotConfig = config.routing.hubspot;
+    const ownerEmail = rep.email;
+    const ownerId = ownerEmail ? await findHubSpotOwnerByEmail(ownerEmail) : null;
+
+    hubspotDealId = await createHubSpotDeal({
+      contactId: hubspotId,
+      companyId: companyId ?? undefined,
+      dealName: `${lead.company_name || lead.first_name || 'Lead'} — Inbound Qualified`,
+      pipeline: hubspotConfig?.pipeline_id || 'default',
+      stage: hubspotConfig?.stages?.qualified || 'qualifiedtobuy',
+      ownerId: ownerId ?? undefined,
+      properties: {
+        gtm_qualification_score: String(qualResult.score),
+        gtm_lead_source: lead.source || 'unknown',
+      },
+    });
+
+    if (hubspotDealId) {
+      await writeQuery(
+        `UPDATE inbound.leads SET metadata = jsonb_set(COALESCE(metadata, '{}'), '{hubspot_deal_id}', $1::jsonb) WHERE id = $2`,
+        [JSON.stringify(hubspotDealId), lead.id]
+      ).catch(() => {});
+    }
   }
 
   // 7. Store attio_id and hubspot_id on lead
@@ -182,6 +227,7 @@ async function routeQualified(
     qualification_score: qualResult.score,
     attio_id: attioId,
     hubspot_id: hubspotId,
+    hubspot_deal_id: hubspotDealId,
   });
 }
 
@@ -231,6 +277,18 @@ async function routeNurture(
     attioId = attioResult.recordId;
   }
 
+  // 3b. Upsert company in Attio (if we have a domain)
+  if (lead.company_domain) {
+    await upsertAttioCompany({
+      domain: lead.company_domain,
+      name: lead.company_name || lead.company_domain,
+      customAttributes: {
+        qualification_score: [{ value: qualResult.score }],
+        lead_status: [{ option: "nurture" }],
+      },
+    }).catch((err) => console.warn('[router] Attio company upsert failed:', err));
+  }
+
   // 4. Upsert contact in HubSpot (non-blocking)
   let hubspotId: string | null = null;
   if (lead.email) {
@@ -247,6 +305,35 @@ async function routeNurture(
     hubspotId = hsResult?.contactId ?? null;
   }
 
+  // 4b. Create HubSpot deal for nurture leads
+  let hubspotDealId: string | null = null;
+  if (hubspotId) {
+    const companyId = lead.company_domain
+      ? await findOrCreateHubSpotCompany(lead.company_domain, lead.company_name || undefined)
+      : null;
+
+    const hubspotConfig = config.routing.hubspot;
+
+    hubspotDealId = await createHubSpotDeal({
+      contactId: hubspotId,
+      companyId: companyId ?? undefined,
+      dealName: `${lead.company_name || lead.first_name || 'Lead'} — Nurture`,
+      pipeline: hubspotConfig?.pipeline_id || 'default',
+      stage: hubspotConfig?.stages?.nurture || 'appointmentscheduled',
+      properties: {
+        gtm_qualification_score: String(qualResult.score),
+        gtm_lead_source: lead.source || 'unknown',
+      },
+    });
+
+    if (hubspotDealId) {
+      await writeQuery(
+        `UPDATE inbound.leads SET metadata = jsonb_set(COALESCE(metadata, '{}'), '{hubspot_deal_id}', $1::jsonb) WHERE id = $2`,
+        [JSON.stringify(hubspotDealId), lead.id]
+      ).catch(() => {});
+    }
+  }
+
   // 5. Store attio_id, hubspot_id, and campaign_id on lead
   await writeQuery(
     `UPDATE inbound.leads SET attio_id = COALESCE($1, attio_id), hubspot_id = COALESCE($2, hubspot_id), campaign_id = COALESCE($3, campaign_id), status = 'nurture', updated_at = NOW() WHERE id = $4`,
@@ -260,6 +347,7 @@ async function routeNurture(
     qualification_score: qualResult.score,
     attio_id: attioId,
     hubspot_id: hubspotId,
+    hubspot_deal_id: hubspotDealId,
     has_email: !!lead.email,
   });
 }
@@ -272,7 +360,7 @@ export async function routeLead(leadId: number): Promise<void> {
   const config = loadConfig();
 
   const lead = await queryOne<Lead>(
-    `SELECT id, first_name, last_name, email, company_name, company_domain, title, status, assigned_rep, attio_id, campaign_id, metadata FROM inbound.leads WHERE id = $1`,
+    `SELECT id, first_name, last_name, email, company_name, company_domain, title, status, source, assigned_rep, attio_id, campaign_id, metadata FROM inbound.leads WHERE id = $1`,
     [leadId]
   );
 

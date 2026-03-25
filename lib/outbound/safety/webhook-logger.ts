@@ -1,7 +1,7 @@
 import { writeQuery } from '@/lib/db-write';
 
 export interface WebhookEventInput {
-  source: 'lemlist' | 'slack_interaction' | 'slack_event' | 'hubspot';
+  source: 'lemlist' | 'slack_interaction' | 'slack_event' | 'hubspot' | 'smartlead' | 'heyreach';
   eventType: string;
   rawPayload: Record<string, unknown>;
   status?: 'received' | 'processed' | 'skipped' | 'failed' | 'rate_limited';

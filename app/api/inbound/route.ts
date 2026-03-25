@@ -4,6 +4,7 @@ import { createLead, enrichDomainFromNeon, extractDomain } from '@/lib/data/lead
 import { getActiveRoutingConfig } from '@/lib/data/routing';
 import { executeRouting } from '@/lib/routing/engine';
 import { qualifyLead } from '@/lib/ai/qualify';
+import { qualifyLead as qualifyLeadICP } from '@/lib/outbound/engine/qualifier';
 import { InboundFormPayload, EnrichmentResult } from '@/types/inbound';
 
 const InboundSchema = z.object({
@@ -53,6 +54,16 @@ export async function POST(request: NextRequest) {
 
     const lead = await createLead(body, enrichmentWithAI);
 
+    // Run full ICP qualification pipeline (website scrape, Vector.co enrichment, ICP scoring)
+    let icpQualification: { qualified: boolean; score: number; reason: string } | null = null;
+    if (domain && lead.id) {
+      try {
+        icpQualification = await qualifyLeadICP(lead.id);
+      } catch (icpErr) {
+        console.error('ICP qualification failed (non-fatal):', (icpErr as Error).message);
+      }
+    }
+
     const routingConfig = await getActiveRoutingConfig();
     if (routingConfig) {
       try {
@@ -67,6 +78,8 @@ export async function POST(request: NextRequest) {
       lead_id: lead.id,
       enriched: enrichment !== null,
       atlas_score: lead.atlas_score,
+      icp_score: icpQualification?.score ?? null,
+      icp_qualified: icpQualification?.qualified ?? null,
       ai_category: qualification?.category ?? null,
       message: "Lead received. We'll be in touch shortly.",
     });
