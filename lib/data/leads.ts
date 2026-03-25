@@ -97,7 +97,7 @@ export async function createLead(
        atlas_score, email_quality, founder_match, contact_identity,
        is_founder_detected, valid_business_emails, valid_free_emails,
        mx_found, enrichment_data, enriched_at
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7::int,$8::int,$9::int,$10::int,$11::boolean,$12::int,$13::int,$14::boolean,$15::jsonb,
        CASE WHEN $7 IS NOT NULL THEN now() ELSE NULL END
      ) RETURNING *`,
     [
