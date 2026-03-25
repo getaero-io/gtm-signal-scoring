@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error processing inbound lead:', error);
     return NextResponse.json(
-      { error: 'Failed to process lead' },
+      { error: 'Failed to process lead', detail: (error as Error).message },
       { status: 500 }
     );
   }
