@@ -2,6 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
     { "path": "/api/cron/bump-stale-drafts", "schedule": "0 8 * * *" },
-    { "path": "/api/events/process", "schedule": "0 */4 * * *" }
+    { "path": "/api/events/process", "schedule": "0 9 * * *" }
   ]
 }
