@@ -88,47 +88,51 @@ ${opts.originalMessage}`);
 **Messaging Angle:** ${persona.messaging_angle}`);
   }
 
-  sections.push(`## Company Positioning
-${messaging.company.elevator_pitch}
+  const elevatorPitch = messaging?.company?.elevator_pitch || messaging?.value_proposition || "";
+  const toneGuidelines = messaging?.tone_guidelines || [];
+  if (elevatorPitch) {
+    sections.push(`## Company Positioning\n${elevatorPitch}${toneGuidelines.length > 0 ? `\n\n**Tone Guidelines:** ${toneGuidelines.join(". ")}` : ""}`);
+  }
 
-**Tone Guidelines:** ${messaging.tone_guidelines.join(". ")}`);
-
-  if (messaging.value_propositions.length > 0) {
-    const vpList = messaging.value_propositions
-      .map((vp) => `- **${vp.headline}**: ${vp.detail.trim().split("\n")[0]}`)
+  const vps = messaging?.value_propositions || [];
+  if (vps.length > 0) {
+    const vpList = vps
+      .map((vp: any) => `- **${vp.headline || vp.key || ""}**: ${(vp.detail || "").trim().split("\n")[0]}`)
       .join("\n");
     sections.push(`## Value Propositions\n${vpList}`);
   }
 
-  const refs = opts.companyContext.references;
+  const refs = opts.companyContext.references || [];
   if (refs.length > 0) {
-    const refList = refs.map((r) => `- ${r.content}`).join("\n");
+    const refList = refs.map((r: any) => `- ${r.content || r.description || JSON.stringify(r)}`).join("\n");
     sections.push(`## Key Stats & References\n${refList}`);
   }
 
-  const proofs = opts.companyContext.proof_points;
+  const proofs = opts.companyContext.proof_points || [];
   if (proofs.length > 0) {
-    const proofList = proofs.map((p) => `- ${p.quotable_result}`).join("\n");
+    const proofList = proofs.map((p: any) => `- ${p.quotable_result || p.result || p.description || JSON.stringify(p)}`).join("\n");
     sections.push(`## Proof Points\n${proofList}`);
   }
 
   const replyLower = opts.replyText.toLowerCase();
-  const matchedCases = opts.companyContext.use_cases.filter((uc) =>
-    uc.keywords.some((kw) => replyLower.includes(kw.toLowerCase()))
+  const useCases = opts.companyContext.use_cases || [];
+  const matchedCases = useCases.filter((uc: any) =>
+    (uc.keywords || []).some((kw: string) => replyLower.includes(kw.toLowerCase()))
   );
   if (matchedCases.length > 0) {
     const caseList = matchedCases
-      .map((uc) => `- **${uc.title}**: ${uc.spring_cash_role.trim().split("\n")[0]}`)
+      .map((uc: any) => `- **${uc.title || uc.name || ""}**: ${(uc.spring_cash_role || uc.description || "").trim().split("\n")[0]}`)
       .join("\n");
     sections.push(`## Relevant Use Cases\n${caseList}`);
   }
 
-  const matchedObjections = messaging.objection_handling.filter((oh) =>
+  const objections = messaging?.objection_handling || [];
+  const matchedObjections = objections.filter((oh: any) =>
     replyLower.includes(oh.objection.toLowerCase().split(" ").slice(0, 3).join(" "))
   );
   if (matchedObjections.length > 0) {
     const objList = matchedObjections
-      .map((oh) => `- If they say "${oh.objection}": ${oh.response_framework.trim().split("\n")[0]}`)
+      .map((oh: any) => `- If they say "${oh.objection}": ${(oh.response_framework || "").trim().split("\n")[0]}`)
       .join("\n");
     sections.push(`## Objection Handling\n${objList}`);
   }

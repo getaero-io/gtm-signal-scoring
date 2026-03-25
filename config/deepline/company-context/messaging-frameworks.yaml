@@ -1,12 +1,39 @@
-value_proposition: "Deepline is the data infrastructure layer for GTM teams — unified enrichment, intelligent lead routing, and automated outbound workflows."
+company:
+  name: "Deepline"
+  tagline: "Data infrastructure for GTM teams"
+  elevator_pitch: >
+    Deepline is the data infrastructure layer for GTM teams — unified
+    enrichment across 20+ providers, intelligent lead routing, and
+    automated outbound reply workflows with LLM-powered drafting and
+    human-in-the-loop approval. One API call replaces 5+ point solutions.
 
-key_messages:
-  - "Replace 5+ point solutions with one unified data layer"
-  - "Waterfall enrichment across 20+ providers with one API call"
-  - "Automated lead scoring and routing based on your ICP"
-  - "LLM-powered reply drafting with human-in-the-loop approval"
+value_propositions:
+  - key: "unified_enrichment"
+    headline: "Replace 5+ point solutions with one API"
+    detail: >
+      Waterfall enrichment across 20+ providers — try each source in
+      priority order until you get the data. One integration, best
+      available result.
+    when_to_use: "Default value prop"
 
-differentiators:
-  - "API-first: everything is programmable"
-  - "Provider-agnostic: works with any enrichment source, CRM, or outbound tool"
-  - "Signal stacking: combines multiple data points for higher confidence"
+  - key: "intelligent_routing"
+    headline: "Score, qualify, and route leads automatically"
+    detail: >
+      Define your ICP in YAML, and Deepline scores every lead against it.
+      Qualified leads get routed to the right rep with full context.
+    when_to_use: "When prospect mentions lead qualification or routing"
+
+  - key: "reply_automation"
+    headline: "Draft replies in seconds, not minutes"
+    detail: >
+      When a prospect replies to your outbound campaign, Deepline drafts
+      an LLM-powered response using your company context and posts it to
+      Slack for one-click approval.
+    when_to_use: "When prospect mentions outbound reply handling"
+
+tone_guidelines:
+  - "Technical but approachable — we're builders talking to builders"
+  - "Specific over generic — reference their stack, tools, or workflow"
+  - "Brief — 3-5 sentences for replies"
+  - "One CTA max"
+  - "Sign off with first name only"
