@@ -81,7 +81,10 @@ export async function processWebhookEvents(): Promise<{
         continue;
       }
 
-      const eventType = raw.event_type || "unknown";
+      // Deepline cloud normalizes some fields but misses others (e.g. LinkedIn replies).
+      // Fall back to original_payload for anything missing.
+      const orig = (raw.original_payload || {}) as Record<string, unknown>;
+      const eventType = raw.event_type || String(orig.type || "unknown");
 
       if (!isReplyEvent(eventType)) {
         await markProcessed(event.row_id, "skipped", `event_type=${eventType}`);
@@ -89,13 +92,30 @@ export async function processWebhookEvents(): Promise<{
         continue;
       }
 
-      if (!raw.reply_text) {
+      // Lemlist LinkedIn replies use "text" not "replyText"
+      const replyText = raw.reply_text || (orig.text as string) || (orig.replyText as string);
+      if (!replyText) {
         await markProcessed(event.row_id, "skipped", "no reply_text");
         skipped++;
         continue;
       }
 
-      await processReplyEvent(event, raw);
+      // Patch missing fields from original_payload before processing
+      const patched = {
+        ...raw,
+        reply_text: replyText,
+        event_type: eventType,
+        source_platform: raw.source_platform !== "unknown" ? raw.source_platform : detectPlatform(event.source, orig),
+        first_name: raw.first_name || (orig.firstName as string) || (orig.leadFirstName as string),
+        last_name: raw.last_name || (orig.lastName as string) || (orig.leadLastName as string),
+        email: raw.email || (orig.email as string),
+        company: raw.company || (orig.companyName as string),
+        campaign_id: raw.campaign_id || (orig.campaignId as string),
+        campaign_name: raw.campaign_name || (orig.campaignName as string) || (orig.name as string),
+        linkedin_url: raw.linkedin_url || (orig.linkedinUrl as string) || (orig.linkedinUrlSalesNav as string),
+      };
+
+      await processReplyEvent(event, patched);
       await markProcessed(event.row_id, "processed");
       processed++;
     } catch (err) {
@@ -106,6 +126,18 @@ export async function processWebhookEvents(): Promise<{
   }
 
   return { total: events.length, processed, skipped, errors };
+}
+
+function detectPlatform(source: string, orig: Record<string, unknown>): string {
+  // Try to detect from tamdb source string (e.g. "cache:local:event_tamdb_write:lemlist")
+  const sourceLower = source.toLowerCase();
+  if (sourceLower.includes("lemlist")) return "lemlist";
+  if (sourceLower.includes("smartlead")) return "smartlead";
+  if (sourceLower.includes("heyreach")) return "heyreach";
+  if (sourceLower.includes("instantly")) return "instantly";
+  // Lemlist payloads have distinctive fields
+  if (orig.leadId || orig.campaignId || orig.lemlistSeenAt) return "lemlist";
+  return "unknown";
 }
 
 function isReplyEvent(eventType: string): boolean {
