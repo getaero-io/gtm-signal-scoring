@@ -26,13 +26,23 @@ export async function POST(request: NextRequest) {
     const body = parsed.data as InboundFormPayload;
 
     const domain = extractDomain(body.email);
-    const enrichment = domain ? await enrichDomainFromNeon(domain) : null;
+    let enrichment: EnrichmentResult | null = null;
+    try {
+      enrichment = domain ? await enrichDomainFromNeon(domain) : null;
+    } catch (enrichErr) {
+      console.error('Enrichment failed (non-fatal):', (enrichErr as Error).message);
+    }
 
     // AI qualification — runs in parallel-friendly position after enrichment
-    const qualification = await qualifyLead(
-      { full_name: body.full_name, email: body.email, company: body.company, message: body.message, domain: domain ?? undefined },
-      enrichment
-    );
+    let qualification: Awaited<ReturnType<typeof qualifyLead>> = null;
+    try {
+      qualification = await qualifyLead(
+        { full_name: body.full_name, email: body.email, company: body.company, message: body.message, domain: domain ?? undefined },
+        enrichment
+      );
+    } catch (qualErr) {
+      console.error('Qualification failed (non-fatal):', (qualErr as Error).message);
+    }
 
     // Merge qualification into enrichment_data so it's stored with the lead
     const enrichmentWithAI: EnrichmentResult | null = enrichment
