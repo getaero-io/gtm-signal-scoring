@@ -392,10 +392,28 @@ async function ensureTrackingTable(): Promise<void> {
       PRIMARY KEY (event_row_id, app_id)
     )`
   );
-  // If the table existed before app_id was added, add the column now
+  // If the table existed before app_id was added, migrate it
   await writeQuery(
     `ALTER TABLE inbound.processed_webhook_events ADD COLUMN IF NOT EXISTS app_id TEXT NOT NULL DEFAULT 'replybot'`
   ).catch(() => {});
+  // Ensure composite PK includes app_id (idempotent: check first)
+  await writeQuery(`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.key_column_usage
+        WHERE table_schema = 'inbound'
+          AND table_name = 'processed_webhook_events'
+          AND column_name = 'app_id'
+          AND constraint_name IN (
+            SELECT constraint_name FROM information_schema.table_constraints
+            WHERE table_schema = 'inbound' AND table_name = 'processed_webhook_events' AND constraint_type = 'PRIMARY KEY'
+          )
+      ) THEN
+        ALTER TABLE inbound.processed_webhook_events DROP CONSTRAINT IF EXISTS processed_webhook_events_pkey;
+        ALTER TABLE inbound.processed_webhook_events ADD PRIMARY KEY (event_row_id, app_id);
+      END IF;
+    END $$;
+  `).catch(() => {});
 }
 
 async function markProcessed(
