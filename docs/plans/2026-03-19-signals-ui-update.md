@@ -1095,7 +1095,7 @@ vercel env add DATABASE_URL production
 
 When prompted, paste:
 ```
-REDACTED_DATABASE_URL
+<ROTATED — set via `vercel env add DATABASE_URL production`>
 ```
 
 Then add for preview too:
