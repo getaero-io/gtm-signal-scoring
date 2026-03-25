@@ -31,6 +31,19 @@ value_propositions:
       Slack for one-click approval.
     when_to_use: "When prospect mentions outbound reply handling"
 
+objection_handling:
+  - objection: "We already have enrichment tools"
+    response_framework: "Acknowledge their stack, then highlight the waterfall advantage — one API call tries 20+ providers in priority order. Most teams find 30-40% more data with zero extra integrations."
+
+  - objection: "We're not ready for this right now"
+    response_framework: "Totally understand. Offer to share a quick case study or keep them in the loop. Plant the seed for when timing is right — 'happy to reconnect next quarter.'"
+
+  - objection: "This seems too complex"
+    response_framework: "Reframe: Deepline replaces complexity, it doesn't add it. One YAML config defines your ICP, one API handles enrichment. Most teams are live in under a week."
+
+  - objection: "What about data privacy"
+    response_framework: "We don't store PII beyond what's needed for enrichment caching. All data flows through your own Postgres instance — you control retention and access."
+
 tone_guidelines:
   - "Technical but approachable — we're builders talking to builders"
   - "Specific over generic — reference their stack, tools, or workflow"

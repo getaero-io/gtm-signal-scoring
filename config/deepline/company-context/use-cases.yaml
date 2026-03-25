@@ -1,16 +1,28 @@
 use_cases:
   - name: "Waterfall Enrichment"
-    description: "Route enrichment requests through multiple providers in priority order until data is found"
-    keywords: ["enrichment", "data", "email", "phone", "contact"]
+    title: "Waterfall Enrichment"
+    scenario: "You need contact data (email, phone, LinkedIn) but no single provider has it all"
+    spring_cash_role: "Route enrichment requests through 20+ providers in priority order until data is found — one API call, best available result"
+    ideal_for: ["sales teams", "growth teams", "data teams"]
+    keywords: ["enrichment", "data", "email", "phone", "contact", "provider", "waterfall"]
 
   - name: "Inbound Lead Scoring"
-    description: "Automatically score and qualify inbound leads against your ICP using AI + enrichment signals"
-    keywords: ["scoring", "qualify", "inbound", "leads", "ICP"]
+    title: "Inbound Lead Scoring"
+    scenario: "Inbound leads come in but your team wastes time on unqualified prospects"
+    spring_cash_role: "Automatically score and qualify inbound leads against your ICP using AI + enrichment signals — route qualified leads to the right rep instantly"
+    ideal_for: ["growth teams", "RevOps", "sales leaders"]
+    keywords: ["scoring", "qualify", "inbound", "leads", "ICP", "routing", "qualification"]
 
   - name: "Outbound Reply Automation"
-    description: "LLM-drafted responses to outbound campaign replies with Slack approval workflow"
-    keywords: ["outbound", "reply", "automate", "campaign", "email"]
+    title: "Outbound Reply Automation"
+    scenario: "Prospects reply to outbound campaigns but reps are slow to respond or replies are inconsistent"
+    spring_cash_role: "LLM-drafted responses to outbound campaign replies with Slack approval workflow — respond in minutes, not hours"
+    ideal_for: ["SDRs", "sales leaders", "growth teams"]
+    keywords: ["outbound", "reply", "automate", "campaign", "email", "response", "draft", "linkedin"]
 
   - name: "CRM Sync"
-    description: "Bi-directional sync between enrichment data and your CRM (Attio, HubSpot)"
-    keywords: ["crm", "sync", "attio", "hubspot", "salesforce"]
+    title: "CRM Sync"
+    scenario: "Your CRM data is stale, incomplete, or out of sync with your enrichment tools"
+    spring_cash_role: "Bi-directional sync between enrichment data and your CRM (Attio, HubSpot) — keeps lead data fresh and complete automatically"
+    ideal_for: ["RevOps", "sales ops", "growth teams"]
+    keywords: ["crm", "sync", "attio", "hubspot", "salesforce", "integration"]

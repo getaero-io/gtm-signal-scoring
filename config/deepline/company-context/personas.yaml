@@ -1,16 +1,48 @@
 personas:
   - name: "Technical Founder"
     titles: ["founder", "ceo", "cto", "co-founder", "technical co-founder"]
-    messaging_focus: "Emphasize technical capabilities, API-first design, and developer experience"
+    pain_points:
+      - "Stitching together 5+ enrichment tools with fragile integrations"
+      - "No unified view of lead data across providers"
+      - "Engineering time wasted on plumbing instead of product"
+    motivations:
+      - "API-first tooling they can build on"
+      - "Consolidate vendor sprawl into one platform"
+      - "Ship GTM workflows without hiring a RevOps team"
+    messaging_angle: "Emphasize technical capabilities, API-first design, and developer experience"
 
   - name: "Head of Growth"
     titles: ["head of growth", "vp growth", "growth lead", "head of marketing", "vp marketing"]
-    messaging_focus: "Focus on GTM automation, lead quality improvement, and pipeline velocity"
+    pain_points:
+      - "Low lead quality from outbound campaigns"
+      - "Slow response times to inbound replies kill conversion"
+      - "No visibility into which campaigns produce qualified pipeline"
+    motivations:
+      - "Improve lead-to-meeting conversion rates"
+      - "Automate reply handling to respond in minutes, not hours"
+      - "Data-driven campaign optimization"
+    messaging_angle: "Focus on GTM automation, lead quality improvement, and pipeline velocity"
 
   - name: "RevOps Leader"
     titles: ["revops", "revenue operations", "head of sales ops", "sales operations"]
-    messaging_focus: "Highlight workflow automation, CRM integrations, and data quality"
+    pain_points:
+      - "CRM data is stale or incomplete"
+      - "Manual lead routing wastes rep time and creates handoff gaps"
+      - "No single source of truth for enrichment data"
+    motivations:
+      - "Automated workflows that keep CRM data fresh"
+      - "Rules-based lead routing with full audit trail"
+      - "Unified enrichment layer across all tools"
+    messaging_angle: "Highlight workflow automation, CRM integrations, and data quality"
 
   - name: "Sales Leader"
     titles: ["vp sales", "head of sales", "sales director", "chief revenue officer"]
-    messaging_focus: "Emphasize pipeline impact, lead scoring accuracy, and rep productivity"
+    pain_points:
+      - "Reps spend too much time researching leads instead of selling"
+      - "Inconsistent follow-up on outbound replies"
+      - "No way to prioritize leads by actual fit"
+    motivations:
+      - "Give reps pre-qualified leads with full context"
+      - "Automated reply drafting so reps focus on closing"
+      - "ICP scoring that actually reflects deal potential"
+    messaging_angle: "Emphasize pipeline impact, lead scoring accuracy, and rep productivity"
