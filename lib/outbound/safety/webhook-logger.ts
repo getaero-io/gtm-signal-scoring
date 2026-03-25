@@ -54,7 +54,7 @@ export async function updateWebhookEvent(
          processing_result = COALESCE($4::jsonb, processing_result),
          error_message = COALESCE($5, error_message),
          processed_at = CASE WHEN $6 THEN NOW() ELSE processed_at END
-     WHERE id = $7::uuid`,
+     WHERE id = $7`,
     [
       update.status,
       update.leadId ?? null,
