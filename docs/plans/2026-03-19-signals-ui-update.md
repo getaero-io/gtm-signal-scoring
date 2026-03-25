@@ -1095,7 +1095,7 @@ vercel env add DATABASE_URL production
 
 When prompted, paste:
 ```
-postgresql://dl_tenant_read:npg_i4HVYMDOJ3Pr@ep-withered-haze-adr26e87-pooler.c-2.us-east-1.aws.neon.tech/org_jh77fcm06nxbyq6gkyb1a7d7b58323ck?channel_binding=require&sslmode=require
+<ROTATED — set via `vercel env add DATABASE_URL production`>
 ```
 
 Then add for preview too:
