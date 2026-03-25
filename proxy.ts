@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // Routes that handle their own authentication
 const PUBLIC_ROUTES = [
-  '/api/outbound/lemlist/webhook',
   '/api/outbound/slack/interactions',
   '/api/outbound/slack/events',
   '/api/inbound',
   '/api/outbound/health',
   '/api/cron/',
+  '/api/events/process',
   '/api/send-reply',
+  '/api/signals/',
 ];
 
 export function proxy(req: NextRequest) {

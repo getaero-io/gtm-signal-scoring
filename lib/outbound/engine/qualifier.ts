@@ -3,6 +3,8 @@ import { writeQuery } from "@/lib/db-write";
 import { loadConfig } from "../config/loader";
 import { scoreLead } from "./scorer";
 import { analyzeWebsite } from "../llm";
+import { enrichFromVectorCached } from "@/lib/enrichment/vector";
+import { upsertLearning } from "../db/learnings";
 
 async function queryOne<T>(sql: string, params?: any[]): Promise<T | null> {
   const rows = await query<T>(sql, params);
@@ -182,7 +184,7 @@ async function scrapeWebsite(url: string): Promise<string | null> {
  *   5. Persist results and update lead status
  */
 export async function qualifyLead(
-  leadId: number
+  leadId: string | number
 ): Promise<QualificationResult> {
   const config = loadConfig();
 
@@ -249,6 +251,36 @@ export async function qualifyLead(
     ...lead,
     ...websiteAnalysis,
   };
+
+  // 5b. Vector.co enrichment (non-fatal)
+  if (lead.company_domain) {
+    try {
+      const vectorData = await enrichFromVectorCached(String(lead.company_domain));
+      if (vectorData) {
+        enrichedLead.employee_count = vectorData.employee_count;
+        enrichedLead.industry = vectorData.industry;
+        enrichedLead.sub_industry = vectorData.sub_industry;
+        enrichedLead.revenue_range = vectorData.revenue_range;
+        enrichedLead.funding_stage = vectorData.funding_stage;
+        enrichedLead.funding_total = vectorData.funding_total;
+        enrichedLead.founded_year = vectorData.founded_year;
+        enrichedLead.technologies = vectorData.technologies;
+
+        // Write to learnings for dashboard
+        await upsertLearning({
+          entity_type: 'company',
+          entity_id: String(lead.company_domain),
+          category: 'vector_enrichment',
+          key: 'company_profile',
+          value: JSON.stringify(vectorData),
+          confidence: 90,
+          source: 'vector.co',
+        }).catch(() => {});
+      }
+    } catch (err) {
+      console.warn('[qualifier] Vector enrichment failed (non-fatal):', err);
+    }
+  }
 
   // 6. Score against the ICP referenced by the rule
   const icp = config.icp_definitions[matchedRule.icp_ref];
