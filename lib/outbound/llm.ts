@@ -23,7 +23,8 @@ export async function generateResponse(opts: {
       { role: "system", content: opts.systemPrompt },
       { role: "user", content: opts.userMessage },
     ],
-    max_completion_tokens: opts.maxTokens ?? 300,
+    // gpt-5-mini uses reasoning tokens from the same budget, so pad generously
+    max_completion_tokens: (opts.maxTokens ?? 300) + 512,
   });
 
   return completion.choices[0]?.message?.content ?? "";
