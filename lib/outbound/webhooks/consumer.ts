@@ -31,6 +31,7 @@ interface EnrichmentEventRow {
       email?: string;
       linkedin_url?: string;
       received_at?: string;
+      send_user_name?: string;
       original_payload?: Record<string, unknown>;
     };
     identity_payload?: Record<string, string[]>;
@@ -113,6 +114,7 @@ export async function processWebhookEvents(): Promise<{
         campaign_id: raw.campaign_id || (orig.campaignId as string),
         campaign_name: raw.campaign_name || (orig.campaignName as string) || (orig.name as string),
         linkedin_url: raw.linkedin_url || (orig.linkedinUrl as string) || (orig.linkedinUrlSalesNav as string),
+        send_user_name: raw.send_user_name || (orig.sendUserName as string),
       };
 
       await processReplyEvent(event, patched);
@@ -227,10 +229,38 @@ async function processReplyEvent(
   }>(`SELECT id, title, company_domain FROM inbound.leads WHERE id = $1`, [leadId])
     .then(r => r[0] ?? null);
 
-  // Pick rep
-  const reps = config.routing.reps;
-  const repIndex = Math.floor(Math.random() * reps.length);
-  const repName = reps[repIndex]?.name || "Tej";
+  // Use actual sender name from the outreach platform (e.g. Lemlist's sendUserName)
+  const repName = raw.send_user_name
+    || config.routing.reps[0]?.name
+    || "Team";
+
+  // Fetch prior conversation thread for this lead to give the LLM context
+  let priorThread: string | null = null;
+  try {
+    const priorMessages = await query<{
+      direction: string;
+      channel: string;
+      original_message: string | null;
+      drafted_response: string | null;
+      created_at: string;
+    }>(
+      `SELECT direction, channel, original_message, drafted_response, created_at
+       FROM inbound.conversations
+       WHERE lead_id = $1
+       ORDER BY created_at ASC
+       LIMIT 10`,
+      [leadId]
+    );
+    if (priorMessages.length > 0) {
+      priorThread = priorMessages.map((m) => {
+        const who = m.direction === "inbound" ? prospectName : repName;
+        const text = m.direction === "inbound" ? m.original_message : m.drafted_response;
+        return `[${m.direction}] ${who}: ${text || "(no text)"}`;
+      }).join("\n");
+    }
+  } catch (err) {
+    console.warn("[webhook/consumer] Failed to fetch prior thread:", err);
+  }
 
   // Draft reply via LLM
   const draftedResponse = await draftReply({
@@ -240,7 +270,7 @@ async function processReplyEvent(
     companyName,
     companyDescription: null,
     campaignName: raw.campaign_name || "Unknown Campaign",
-    originalMessage: null,
+    originalMessage: priorThread,
     repName,
     template,
     companyContext: config.company_context,
