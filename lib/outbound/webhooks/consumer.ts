@@ -59,7 +59,7 @@ export async function processWebhookEvents(): Promise<{
      WHERE p.event_row_id IS NULL
        AND e.source LIKE 'cache:local:event_tamdb_write:%'
      ORDER BY e.created_at ASC
-     LIMIT 20`,
+     LIMIT 5`,
     [APP_ID]
   );
 
@@ -262,6 +262,9 @@ async function processReplyEvent(
     console.warn("[webhook/consumer] Failed to fetch prior thread:", err);
   }
 
+  // Detect channel before drafting so the LLM knows LinkedIn vs email
+  const replyChannel = raw.event_type?.toLowerCase().includes("linkedin") ? "linkedin" as const : "email" as const;
+
   // Draft reply via LLM
   const draftedResponse = await draftReply({
     replyText: raw.reply_text!,
@@ -272,12 +275,10 @@ async function processReplyEvent(
     campaignName: raw.campaign_name || "Unknown Campaign",
     originalMessage: priorThread,
     repName,
+    channel: replyChannel,
     template,
     companyContext: config.company_context,
   });
-
-  // Score lead against ICP + write signals
-  const replyChannel = raw.event_type?.toLowerCase().includes("linkedin") ? "linkedin" : "email";
   try {
     const leadData: Record<string, unknown> = {
       email: raw.email,
