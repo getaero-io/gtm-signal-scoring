@@ -24,10 +24,15 @@ export async function generateResponse(opts: {
       { role: "user", content: opts.userMessage },
     ],
     // gpt-5-mini uses reasoning tokens from the same budget, so pad generously
-    max_completion_tokens: (opts.maxTokens ?? 300) + 512,
+    // 1024 padding covers ~400 reasoning tokens + output headroom
+    max_completion_tokens: (opts.maxTokens ?? 300) + 1024,
   });
 
-  return completion.choices[0]?.message?.content ?? "";
+  const content = completion.choices[0]?.message?.content ?? "";
+  if (!content && completion.choices[0]?.finish_reason === "length") {
+    console.warn("[llm] Empty response due to token limit, finish_reason=length");
+  }
+  return content;
 }
 
 export async function analyzeWebsite(opts: {

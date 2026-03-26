@@ -15,6 +15,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { processWebhookEvents } from '@/lib/outbound/webhooks/consumer';
 
+// Each event makes an LLM call (~5-10s), so 5 events needs ~60s max
+export const maxDuration = 120;
+
 export async function POST(req: NextRequest) {
   const qstashSignature = req.headers.get('upstash-signature');
   const cronAuth = req.headers.get('authorization');

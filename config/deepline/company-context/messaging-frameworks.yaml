@@ -1,3 +1,7 @@
+# Messaging Frameworks — Deepline
+# Default: Kellen Casebeer / The Deal Lab methodology
+# Override: set REPLY_FRAMEWORK=custom in env or add tenant-specific overrides in routing-rules.yaml
+
 company:
   name: "Deepline"
   tagline: "Data infrastructure for GTM teams"
@@ -31,22 +35,100 @@ value_propositions:
       Slack for one-click approval.
     when_to_use: "When prospect mentions outbound reply handling"
 
+# --- Offers (injected into LLM context automatically) ---
+# Override per tenant by adding an `offers` block in routing-rules.yaml
+offers:
+  promo_code: "DeeplineBeta"
+  promo_value: "$25 free credit"
+  promo_description: "$25 credit to get started, no commitment"
+  docs_link: "https://code.deepline.com/docs/quickstart"
+  docs_description: "Quickstart guide, takes 5 minutes to get running"
+  calendly_link: "https://calendly.com/d/csdb-85z-t6z/deepline-meeting"
+  calendly_description: "15-min walkthrough, no pitch deck, just a look at the product"
+  dfy_offer: "Send me your messiest enrichment workflow (Clay table, API chain, whatever). I'll rebuild it as a script. Free, you keep the code."
+
+# --- Objection Handling ---
 objection_handling:
   - objection: "We already have enrichment tools"
-    response_framework: "Acknowledge their stack, then highlight the waterfall advantage — one API call tries 20+ providers in priority order. Most teams find 30-40% more data with zero extra integrations."
+    response_framework: "Acknowledge their stack, highlight waterfall — one API call tries 20+ providers in priority order. Most teams find 30-40% more data with zero extra integrations."
 
   - objection: "We're not ready for this right now"
-    response_framework: "Totally understand. Offer to share a quick case study or keep them in the loop. Plant the seed for when timing is right — 'happy to reconnect next quarter.'"
+    response_framework: "Respect timing. No pressure. Leave one value point so they remember what Deepline does. 'Happy to reconnect whenever — no rush.'"
 
   - objection: "This seems too complex"
     response_framework: "Reframe: Deepline replaces complexity, it doesn't add it. One YAML config defines your ICP, one API handles enrichment. Most teams are live in under a week."
 
   - objection: "What about data privacy"
-    response_framework: "We don't store PII beyond what's needed for enrichment caching. All data flows through your own Postgres instance — you control retention and access."
+    response_framework: "We don't store PII beyond enrichment caching. All data flows through your own Postgres instance — you control retention and access."
 
+  - objection: "We use Clay / n8n / Make.com already"
+    response_framework: "Acknowledge the tool. Position Deepline as complementary — we're the data layer, not a replacement. Clay is a spreadsheet UI, Deepline is code-first infrastructure. n8n handles orchestration, Deepline handles enrichment. They work together."
+
+  - objection: "I already built my own system"
+    response_framework: "Respect the build. Deepline is the data layer underneath — waterfall enrichment so your agents call one API instead of managing 20+ provider integrations. You keep your system, Deepline feeds it better data."
+
+# --- Tone & Voice (Kellen Casebeer / The Deal Lab) ---
+# These are DEFAULT guidelines. Override by adding a `tone_override` key in routing-rules.yaml
 tone_guidelines:
-  - "Technical but approachable — we're builders talking to builders"
-  - "Specific over generic — reference their stack, tools, or workflow"
-  - "Brief — 3-5 sentences for replies"
-  - "One CTA max"
-  - "Sign off with first name only"
+  # Core rules
+  - "Answer first — address their question or comment directly before introducing your angle."
+  - "Match their energy — if they wrote 2 words, respond with 3-4 sentences. If they wrote a paragraph, match length."
+  - "Give the out — always provide a graceful exit. 'if not, no worries' / 'no stress' / 'no pressure'."
+  - "Soft CTA — never hard-sell. Use curiosity or low-friction asks. 'happy to show you' not 'book a demo'."
+  - "Don't oversell — make the point, then stop. If you've said it, don't say it again."
+  # Style
+  - "Write like a text message — low touch, friendly, short. If it looks like a marketing email, start over."
+  - "Every sentence earns the next one — if a sentence doesn't pull them forward, cut it."
+  - "Single CTA — one ask per message. Multiple CTAs equal zero CTAs."
+  - "Personalization is a feeling, not a token — don't use {{company}} to prove you know who they are. Write something relevant instead."
+  - "Reduce, reduce, reduce — write the full message, then cut until it hurts. The version that hurts is usually right."
+
+# --- Anti-Patterns (what NOT to do) ---
+# Injected as negative examples into the LLM system prompt
+anti_patterns:
+  phrases:
+    - "I'd love to learn more about your challenges"
+    - "happy to hop on a call at your convenience"
+    - "let me know if you have any questions"
+    - "I think you'll really love..."
+    - "excited to connect"
+    - "just bumping this to the top of your inbox"
+    - "just checking in"
+    - "wanted to circle back"
+    - "Great question!"
+    - "That's a really common question"
+  behaviors:
+    - "Listing features — nobody reads it"
+    - "Demo as primary CTA — demos are dead, offer value instead"
+    - "Round numbers or fabricated stats — destroys trust"
+    - "Generic pain points — too easy to ignore"
+    - "Percentages and dollar signs in cold messages — feels like an ad"
+    - "Quoting their own words back — feels like surveillance, not empathy"
+    - "Elaborate setups ('Imagine this...', 'Picture this...')"
+  punctuation_ban:
+    - "Em dashes (—) — NEVER use em dashes in any reply. Use commas, periods, or rewrite the sentence instead."
+  ai_vocabulary_ban:
+    - "landscape"
+    - "vibrant"
+    - "pivotal"
+    - "crucial"
+    - "moreover"
+    - "additionally"
+    - "game-changer"
+    - "revolutionary"
+    - "excited to announce"
+    - "delve"
+
+# --- Proof Points (Real Numbers Only) ---
+# Do NOT round, adjust, or extrapolate. Use verbatim.
+proof_points:
+  - customer: "Owner.com"
+    metric: "57% faster first touch"
+  - customer: "Owner.com"
+    metric: "43% → 89% daily confirmation rate"
+  - customer: "Owner.com"
+    metric: "+15% demo show rate"
+  - customer: "Prove.com"
+    metric: "5,972 A-tier accounts found with 0 activity in 2 years"
+  - customer: "Ntopology"
+    metric: "15+ data sources unified in 1 afternoon, scoring live in 3 days, <5 hours customer effort"
