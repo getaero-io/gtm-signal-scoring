@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { verifySlackSignature } from '@/lib/outbound/slack/interactions';
 import { logWebhookEvent } from '@/lib/outbound/safety/webhook-logger';
+import { handleThreadReply } from '@/lib/outbound/slack/thread-replies';
 
 export async function POST(req: NextRequest) {
   // Read raw body first for signature verification
@@ -32,6 +34,31 @@ export async function POST(req: NextRequest) {
     rawPayload: event,
     status: 'processed',
   }).catch((err) => console.error('[slack/events] Failed to log event:', err));
+
+  // Handle thread replies — capture edited responses
+  const innerEvent = event?.event;
+  if (
+    innerEvent?.type === 'message' &&
+    innerEvent.thread_ts &&
+    innerEvent.thread_ts !== innerEvent.ts && // is a reply, not the parent
+    !innerEvent.bot_id &&                     // not from a bot
+    !innerEvent.subtype &&                    // not a message_changed etc.
+    innerEvent.text
+  ) {
+    after(async () => {
+      try {
+        await handleThreadReply({
+          threadTs: innerEvent.thread_ts,
+          channel: innerEvent.channel,
+          userId: innerEvent.user,
+          text: innerEvent.text,
+          messageTs: innerEvent.ts,
+        });
+      } catch (err) {
+        console.error('[slack/events] Thread reply handler error:', err);
+      }
+    });
+  }
 
   return NextResponse.json({ ok: true });
 }

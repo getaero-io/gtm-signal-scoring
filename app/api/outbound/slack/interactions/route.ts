@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { handleInteraction, verifySlackSignature } from '@/lib/outbound/slack/interactions';
 import { logWebhookEvent, updateWebhookEvent } from '@/lib/outbound/safety/webhook-logger';
 
@@ -11,7 +12,12 @@ export async function POST(req: NextRequest) {
   if (signingSecret) {
     const timestamp = req.headers.get('x-slack-request-timestamp') || '';
     const signature = req.headers.get('x-slack-signature') || '';
+    if (!timestamp || !signature) {
+      console.error(`[slack/interactions] Missing headers: timestamp=${!!timestamp}, signature=${!!signature}`);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     if (!verifySlackSignature(signingSecret, timestamp, rawBody, signature)) {
+      console.error(`[slack/interactions] Signature verification failed. Secret length=${signingSecret.length}, body length=${rawBody.length}`);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
   } else {
@@ -46,9 +52,12 @@ export async function POST(req: NextRequest) {
   });
 
   // Ack immediately, process async (Slack needs response within 3s)
-  handleInteraction(payload)
-    .then(() => eventId ? updateWebhookEvent(eventId, { status: 'processed' }) : undefined)
-    .catch(async (err) => {
+  // Use after() to keep the function alive for background DB/Slack work
+  after(async () => {
+    try {
+      await handleInteraction(payload);
+      if (eventId) await updateWebhookEvent(eventId, { status: 'processed' });
+    } catch (err) {
       console.error("[slack/interactions] Error:", err);
       if (eventId) {
         await updateWebhookEvent(eventId, {
@@ -56,7 +65,8 @@ export async function POST(req: NextRequest) {
           errorMessage: (err as Error).message,
         }).catch(() => {});
       }
-    });
+    }
+  });
 
   return NextResponse.json({ ok: true });
 }
