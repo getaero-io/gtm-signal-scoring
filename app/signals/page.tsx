@@ -21,9 +21,17 @@ export default async function SignalsPage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Signals Dashboard</h1>
-          <p className="text-zinc-400 mt-1">Lead scoring, qualification, and source performance</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Signals Dashboard</h1>
+            <p className="text-zinc-400 mt-1">Lead scoring, qualification, and source performance</p>
+          </div>
+          <a
+            href="/signals/replies"
+            className="text-sm text-zinc-400 hover:text-zinc-100 border border-zinc-700 rounded px-3 py-1.5 hover:border-zinc-500 transition-colors"
+          >
+            Replies Inbox &rarr;
+          </a>
         </div>
 
         <OverviewCards totals={overview.totals} />
