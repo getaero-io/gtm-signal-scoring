@@ -17,22 +17,48 @@ export async function generateResponse(opts: {
   temperature?: number;
   model?: string;
 }): Promise<string> {
-  const completion = await getOpenAI().chat.completions.create({
-    model: opts.model ?? DEFAULT_MODEL,
-    messages: [
-      { role: "system", content: opts.systemPrompt },
-      { role: "user", content: opts.userMessage },
-    ],
-    // gpt-5-mini uses reasoning tokens from the same budget, so pad generously
-    // 1024 padding covers ~400 reasoning tokens + output headroom
-    max_completion_tokens: (opts.maxTokens ?? 300) + 1024,
-  });
+  const desiredOutput = opts.maxTokens ?? 300;
+  // gpt-5-mini uses reasoning tokens from the same budget.
+  // Start with 4096 padding for reasoning overhead; retry with 8192 if empty.
+  const budgets = [desiredOutput + 4096, desiredOutput + 8192];
 
-  const content = completion.choices[0]?.message?.content ?? "";
-  if (!content && completion.choices[0]?.finish_reason === "length") {
-    console.warn("[llm] Empty response due to token limit, finish_reason=length");
+  for (const budget of budgets) {
+    try {
+      const completion = await getOpenAI().chat.completions.create({
+        model: opts.model ?? DEFAULT_MODEL,
+        messages: [
+          { role: "system", content: opts.systemPrompt },
+          { role: "user", content: opts.userMessage },
+        ],
+        max_completion_tokens: budget,
+      });
+
+      const content = completion.choices[0]?.message?.content ?? "";
+      const finishReason = completion.choices[0]?.finish_reason;
+
+      if (content) return content;
+
+      // Empty response — either token limit or refusal
+      if (finishReason === "length") {
+        console.warn(`[llm] Empty response, finish_reason=length, budget=${budget}. Retrying with higher budget.`);
+        continue; // try next budget
+      }
+
+      console.warn(`[llm] Empty response, finish_reason=${finishReason}, budget=${budget}`);
+      return ""; // non-length empty response, don't retry
+    } catch (err: unknown) {
+      const msg = (err as Error).message || String(err);
+      // Retry on max_tokens errors
+      if (msg.includes("max_tokens") || msg.includes("model output limit")) {
+        console.warn(`[llm] Token limit error at budget=${budget}: ${msg}. Retrying.`);
+        continue;
+      }
+      throw err;
+    }
   }
-  return content;
+
+  console.error("[llm] All budget attempts exhausted, returning empty");
+  return "";
 }
 
 export async function analyzeWebsite(opts: {

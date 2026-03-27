@@ -196,9 +196,16 @@ async function processReplyEvent(
   } else {
     // For LinkedIn-only replies, generate a placeholder email since the column is NOT NULL
     const leadEmail = raw.email || (raw.linkedin_url ? `linkedin-${event.row_id.slice(0, 8)}@placeholder.local` : `unknown-${event.row_id.slice(0, 8)}@placeholder.local`);
+    // Use ON CONFLICT to handle race conditions where concurrent events create the same lead
     const rows = await writeQuery<{ id: string }>(
       `INSERT INTO inbound.leads (id, full_name, first_name, last_name, email, company, company_name, source, status, metadata)
        VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $5, $6, 'replied', $7)
+       ON CONFLICT (email) DO UPDATE SET
+         first_name = COALESCE(EXCLUDED.first_name, inbound.leads.first_name),
+         last_name = COALESCE(EXCLUDED.last_name, inbound.leads.last_name),
+         company_name = COALESCE(EXCLUDED.company_name, inbound.leads.company_name),
+         full_name = COALESCE(EXCLUDED.full_name, inbound.leads.full_name),
+         updated_at = NOW()
        RETURNING id`,
       [
         prospectName,
