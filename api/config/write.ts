@@ -19,7 +19,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const repo = process.env.GITHUB_REPO;
   if (!ghToken || !repo) return res.status(500).json({ error: 'GitHub integration not configured' });
 
-  const filePath = `config/${file}`;
+  const tenant = process.env.TENANT_ID || 'deepline';
+  const filePath = `config/${tenant}/${file}`;
   const commitMessage = message || `config: update ${file}`;
 
   try {
