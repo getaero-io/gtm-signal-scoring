@@ -1,6 +1,9 @@
 tmp/
 data/
+.venv/
 .worktrees/
+.deepline/
+.slack/
 scripts/linkedin-waterfall/output/
 scripts/clay-migration/output/
 *.csv

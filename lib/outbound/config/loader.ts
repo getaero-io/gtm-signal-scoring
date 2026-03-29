@@ -7,7 +7,7 @@ import type {
 } from "./types";
 
 const CONFIG_DIR = join(process.cwd(), "config");
-const TENANTS_DIR = join(CONFIG_DIR, "tenants");
+const TENANTS_DIR = CONFIG_DIR;
 const FALLBACK_CONTEXT_DIR = join(CONFIG_DIR, "company-context");
 
 function loadYamlFile<T>(filepath: string): T {
@@ -131,14 +131,21 @@ export function loadConfig(forceReloadOrTenant?: boolean | string): AppConfig {
     return configCache.get(resolvedTenant)!;
   }
 
-  // Global configs (shared across tenants)
+  // Load configs — prefer tenant-specific, fall back to shared root
+  const tenantDir = join(TENANTS_DIR, resolvedTenant);
+  function tenantOrShared(filename: string): string {
+    const tenantPath = join(tenantDir, filename);
+    if (existsSync(tenantPath)) return tenantPath;
+    return join(CONFIG_DIR, filename);
+  }
+
   const icp_definitions = loadYamlFile<Record<string, ICPDefinition>>(
-    join(CONFIG_DIR, "icp-definitions.yaml")
+    tenantOrShared("icp-definitions.yaml")
   );
   const qualRaw = loadYamlFile<{ rules: QualificationRule[] }>(
-    join(CONFIG_DIR, "qualification-rules.yaml")
+    tenantOrShared("qualification-rules.yaml")
   );
-  const routing = loadYamlFile<RoutingConfig>(join(CONFIG_DIR, "routing-rules.yaml"));
+  const routing = loadYamlFile<RoutingConfig>(tenantOrShared("routing-rules.yaml"));
 
   // Tenant-specific
   const { companyContext, responseTemplates } = loadTenantContext(resolvedTenant);

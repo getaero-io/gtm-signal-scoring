@@ -3,10 +3,13 @@ import { requireAuth } from '../../src/auth/middleware.js';
 import { readFileSync } from 'fs';
 import { join, resolve } from 'path';
 
-const CONFIG_DIR = join(process.cwd(), 'config');
+const BASE_CONFIG_DIR = join(process.cwd(), 'config');
 
 export default function handler(req: VercelRequest, res: VercelResponse) {
   if (!requireAuth(req, res)) return;
+
+  const tenant = process.env.TENANT_ID || 'deepline';
+  const CONFIG_DIR = join(BASE_CONFIG_DIR, tenant);
 
   const file = req.query.file as string;
   if (!file) return res.status(400).json({ error: 'file parameter required' });
@@ -17,7 +20,7 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const content = readFileSync(resolved, 'utf-8');
-    return res.json({ file, content });
+    return res.json({ file, content, tenant });
   } catch {
     return res.status(404).json({ error: 'File not found' });
   }
