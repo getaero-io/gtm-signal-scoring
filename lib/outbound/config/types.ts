@@ -103,6 +103,15 @@ export interface MessagingFramework {
   value_propositions: ValueProposition[];
   objection_handling: ObjectionHandler[];
   tone_guidelines: string[];
+  offers?: {
+    calendly_link?: string;
+    calendly_description?: string;
+    promo_code?: string;
+    promo_value?: string;
+    promo_description?: string;
+    docs_link?: string;
+    docs_description?: string;
+  };
 }
 
 export interface UseCase {
