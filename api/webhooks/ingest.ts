@@ -74,7 +74,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       entity_type: "event",
     };
 
-    const rows = await query<{ row_id: string }>(
+    const result = await query(
       `INSERT INTO dl_cache.enrichment_event
         (row_id, source, doc, extracted_potential_identifier_keys, created_at, updated_at)
        VALUES (gen_random_uuid(), $1, $2, $3, NOW(), NOW())
@@ -87,7 +87,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
 
     console.log(
-      `[webhooks/ingest] Wrote ${sourcePlatform} event: ${rows[0].row_id} (${normalized.event_type})`
+      `[webhooks/ingest] Wrote ${sourcePlatform} event: ${result.rows[0].row_id} (${normalized.event_type})`
     );
 
     // Fan-out to relay targets (fire-and-forget, non-blocking)
@@ -100,7 +100,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(202).json({
       ok: true,
-      event_row_id: rows[0].row_id,
+      event_row_id: result.rows[0].row_id,
       event_type: normalized.event_type,
       source_platform: sourcePlatform,
     });
