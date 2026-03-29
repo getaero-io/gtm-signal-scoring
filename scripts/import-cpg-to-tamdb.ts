@@ -202,23 +202,26 @@ async function main() {
         }
 
         try {
+          const fullName = [firstName, lastName].filter(Boolean).join(" ") || "Unknown";
           await client.query(
             `INSERT INTO leads (
-              external_id, first_name, last_name, email, company_name,
-              company_domain, linkedin_url, title, source, metadata
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'cpg_import', $9)
+              full_name, first_name, last_name, email, company_name, company,
+              company_domain, domain, linkedin_url, title, source, metadata
+            ) VALUES ($1, $2, $3, $4, $5, $5, $6, $6, $7, $8, 'cpg_import', $9)
             ON CONFLICT (email) DO UPDATE SET
+              full_name        = COALESCE(EXCLUDED.full_name, leads.full_name),
               first_name       = COALESCE(EXCLUDED.first_name, leads.first_name),
               last_name        = COALESCE(EXCLUDED.last_name, leads.last_name),
               company_name     = COALESCE(EXCLUDED.company_name, leads.company_name),
+              company          = COALESCE(EXCLUDED.company, leads.company),
               company_domain   = COALESCE(EXCLUDED.company_domain, leads.company_domain),
+              domain           = COALESCE(EXCLUDED.domain, leads.domain),
               linkedin_url     = COALESCE(EXCLUDED.linkedin_url, leads.linkedin_url),
               title            = COALESCE(EXCLUDED.title, leads.title),
-              external_id      = COALESCE(EXCLUDED.external_id, leads.external_id),
               metadata         = leads.metadata || EXCLUDED.metadata,
               updated_at       = NOW()`,
             [
-              externalId,
+              fullName,
               firstName,
               lastName,
               email,
