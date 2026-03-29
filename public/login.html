@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GTM Platform - Login</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  color: #fafafa;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: #141414;
+  border: 1px solid #262626;
+  border-radius: 12px;
+  padding: 40px 32px;
+  margin: 16px;
+}
+
+.login-title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+}
+
+.login-subtitle {
+  font-size: 13px;
+  color: #888888;
+  margin-bottom: 28px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #a1a1a1;
+  margin-bottom: 6px;
+}
+
+.form-input {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  color: #fafafa;
+  background: #0a0a0a;
+  border: 1px solid #262626;
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 150ms ease;
+}
+
+.form-input:focus {
+  border-color: #3b82f6;
+}
+
+.btn-submit {
+  width: 100%;
+  padding: 10px 0;
+  font-size: 14px;
+  font-family: inherit;
+  font-weight: 600;
+  color: #fff;
+  background: #3b82f6;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.btn-submit:hover {
+  background: #2563eb;
+}
+
+.btn-submit:active {
+  transform: scale(0.98);
+}
+
+.btn-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.error-message {
+  display: none;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+}
+
+.error-message.visible {
+  display: block;
+}
+</style>
+</head>
+<body>
+<div class="login-card">
+  <h1 class="login-title">GTM Platform</h1>
+  <p class="login-subtitle">Enter your password to access the platform</p>
+  <div id="error" class="error-message"></div>
+  <form id="loginForm">
+    <div class="form-group">
+      <label class="form-label" for="password">Password</label>
+      <input class="form-input" id="password" name="password" type="password" autofocus required>
+    </div>
+    <button class="btn-submit" type="submit">Sign in</button>
+  </form>
+</div>
+<script>
+  (function() {
+    var form = document.getElementById('loginForm');
+    var errorEl = document.getElementById('error');
+    var passwordInput = document.getElementById('password');
+    var submitBtn = form.querySelector('button[type="submit"]');
+
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      errorEl.classList.remove('visible');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Signing in...';
+
+      fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: passwordInput.value })
+      })
+      .then(function(res) {
+        if (res.ok) {
+          window.location.href = '/dashboard/';
+          return;
+        }
+        return res.json().then(function(data) {
+          throw new Error(data.error || 'Invalid password');
+        });
+      })
+      .catch(function(err) {
+        errorEl.textContent = err.message || 'Invalid password';
+        errorEl.classList.add('visible');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign in';
+        passwordInput.focus();
+      });
+    });
+  })();
+</script>
+</body>
+</html>

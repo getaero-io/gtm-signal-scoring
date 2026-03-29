@@ -1,7 +1,21 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
+    { "path": "/api/cron/send-approved", "schedule": "* * * * *" },
     { "path": "/api/cron/bump-stale-drafts", "schedule": "0 8 * * *" },
     { "path": "/api/events/process", "schedule": "0 9 * * *" }
+  ],
+  "rewrites": [
+    { "source": "/health", "destination": "/api/health" },
+    { "source": "/config/list", "destination": "/api/config/list" },
+    { "source": "/config/read", "destination": "/api/config/read" },
+    { "source": "/config/write", "destination": "/api/config/write" },
+    { "source": "/config/reload", "destination": "/api/config/reload" },
+    { "source": "/slack/interactions", "destination": "/api/slack/interactions" },
+    { "source": "/slack/events", "destination": "/api/slack/events" },
+    { "source": "/test/outbound-reply", "destination": "/api/test/outbound-reply" },
+    { "source": "/test/qualified-lead", "destination": "/api/test/qualified-lead" },
+    { "source": "/lemlist/webhook", "destination": "/api/lemlist/webhook" },
+    { "source": "/", "destination": "/login.html" }
   ]
 }
