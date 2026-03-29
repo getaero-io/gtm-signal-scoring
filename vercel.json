@@ -7,6 +7,9 @@
   ],
   "rewrites": [
     { "source": "/health", "destination": "/api/health" },
+    { "source": "/config/list", "destination": "/api/config/list" },
+    { "source": "/config/read", "destination": "/api/config/read" },
+    { "source": "/config/write", "destination": "/api/config/write" },
     { "source": "/config/reload", "destination": "/api/config/reload" },
     { "source": "/slack/interactions", "destination": "/api/slack/interactions" },
     { "source": "/slack/events", "destination": "/api/slack/events" },
