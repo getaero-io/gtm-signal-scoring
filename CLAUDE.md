@@ -54,6 +54,16 @@ npm run validate-config            # Validate YAML configs
 - All tables in `inbound` schema
 - Run migration: `npx tsx -e "import{readFileSync}from'fs';import pg from'pg';const p=new pg.Pool({connectionString:process.env.DATABASE_URL});await p.query(readFileSync('src/db/schema.sql','utf-8'));console.log('done');await p.end()"`
 
+## Tenant Configuration
+
+Set `TENANT_ID` env var to control which company context and response templates are loaded:
+
+- `deepline` (default) — Deepline company context and tone
+- `spring-cash` — Spring Cash company context and tone
+
+Shared config (ICP definitions, qualification rules, routing rules) is at `config/`.
+Tenant-specific config (company context, personas, response templates) is at `config/tenants/{TENANT_ID}/`.
+
 ## Environment Variables
 See `env.example` for complete list with descriptions.
 
