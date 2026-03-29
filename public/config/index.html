@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Config Editor</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>&#x2699;</text></svg>">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-0: #0a0a0a;
+  --bg-1: #111111;
+  --bg-2: #141414;
+  --bg-3: #1a1a1a;
+  --border: #262626;
+  --border-hover: #3a3a3a;
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1a1;
+  --text-muted: #666666;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --success: #22c55e;
+  --error: #ef4444;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Menlo', monospace;
+  --transition: 150ms ease;
+}
+
+html { background: var(--bg-0); color: var(--text-primary); font-family: var(--font-sans); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+body { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Nav */
+.nav { display: flex; align-items: center; gap: 24px; padding: 0 20px; height: 48px; background: var(--bg-2); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.nav-brand { font-size: 15px; font-weight: 600; letter-spacing: -0.02em; color: var(--text-primary); text-decoration: none; }
+.nav-brand:hover { text-decoration: none; }
+.nav-links { display: flex; gap: 4px; }
+.nav-link { padding: 6px 12px; font-size: 13px; font-weight: 500; color: var(--text-secondary); text-decoration: none; border-radius: 6px; transition: all var(--transition); }
+.nav-link:hover { color: var(--text-primary); background: var(--bg-3); text-decoration: none; }
+.nav-link.active { color: var(--text-primary); background: var(--bg-3); }
+
+/* Layout */
+.layout { display: flex; flex: 1; overflow: hidden; }
+
+/* Sidebar */
+.sidebar { width: 260px; min-width: 260px; background: var(--bg-2); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+.sidebar-header { padding: 16px; font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); }
+.file-list { flex: 1; overflow-y: auto; padding: 8px; }
+.file-item { display: block; width: 100%; padding: 8px 12px; font-size: 13px; font-family: var(--font-mono); color: var(--text-secondary); background: none; border: none; border-radius: 6px; cursor: pointer; text-align: left; transition: all var(--transition); word-break: break-all; }
+.file-item:hover { color: var(--text-primary); background: var(--bg-3); }
+.file-item.active { color: var(--text-primary); background: rgba(59, 130, 246, 0.15); }
+
+/* Main */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Toolbar */
+.toolbar { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; background: var(--bg-1); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.toolbar-left { display: flex; align-items: center; gap: 12px; }
+.toolbar-file { font-size: 13px; font-family: var(--font-mono); color: var(--text-primary); }
+.toolbar-status { font-size: 12px; color: var(--text-muted); }
+.toolbar-right { display: flex; align-items: center; gap: 8px; }
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; font-size: 13px; font-family: var(--font-sans); font-weight: 500; color: var(--text-primary); background: var(--bg-3); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; transition: all var(--transition); white-space: nowrap; }
+.btn:hover { background: #222; border-color: var(--border-hover); }
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn-shortcut { font-size: 11px; color: rgba(255,255,255,0.5); margin-left: 4px; }
+
+/* Editor */
+.editor-wrap { flex: 1; overflow: hidden; position: relative; }
+.editor { width: 100%; height: 100%; padding: 20px; font-family: var(--font-mono); font-size: 13px; line-height: 1.6; color: var(--text-primary); background: var(--bg-0); border: none; outline: none; resize: none; tab-size: 2; }
+.editor::placeholder { color: var(--text-muted); }
+
+/* Empty state */
+.empty-state { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 14px; }
+
+/* Status colors */
+.status-saving { color: var(--accent); }
+.status-saved { color: var(--success); }
+.status-error { color: var(--error); }
+.status-modified { color: #eab308; }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a class="nav-brand" href="/dashboard/">GTM Platform</a>
+  <div class="nav-links">
+    <a class="nav-link" href="/dashboard/">Dashboard</a>
+    <a class="nav-link active" href="/config/">Config</a>
+  </div>
+</nav>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-header">Config Files</div>
+    <div class="file-list" id="fileList"></div>
+  </aside>
+
+  <div class="main">
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <span class="toolbar-file" id="toolbarFile">No file selected</span>
+        <span class="toolbar-status" id="toolbarStatus"></span>
+      </div>
+      <div class="toolbar-right">
+        <button class="btn btn-primary" id="saveBtn" disabled>
+          Save &amp; Deploy
+          <span class="btn-shortcut" id="shortcutHint"></span>
+        </button>
+      </div>
+    </div>
+    <div class="editor-wrap" id="editorWrap">
+      <div class="empty-state" id="emptyState">Select a file from the sidebar to edit</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  // Auth check
+  fetch('/api/config/list', { credentials: 'same-origin' }).then(function(r) {
+    if (r.status === 401) {
+      window.location.href = '/login.html';
+      return;
+    }
+    if (!r.ok) throw new Error('Failed to load file list');
+    return r.json();
+  }).then(function(data) {
+    if (data) renderFileList(data.files);
+  }).catch(function(err) {
+    setStatus(err.message, 'status-error');
+  });
+
+  var fileListEl = document.getElementById('fileList');
+  var toolbarFile = document.getElementById('toolbarFile');
+  var toolbarStatus = document.getElementById('toolbarStatus');
+  var saveBtn = document.getElementById('saveBtn');
+  var editorWrap = document.getElementById('editorWrap');
+  var emptyState = document.getElementById('emptyState');
+  var shortcutHint = document.getElementById('shortcutHint');
+
+  var currentFile = null;
+  var originalContent = '';
+  var editorEl = null;
+
+  // Detect OS for shortcut hint
+  var isMac = navigator.platform.indexOf('Mac') > -1;
+  shortcutHint.textContent = isMac ? 'Cmd+S' : 'Ctrl+S';
+
+  function renderFileList(files) {
+    fileListEl.textContent = '';
+    files.sort();
+    for (var i = 0; i < files.length; i++) {
+      var btn = document.createElement('button');
+      btn.className = 'file-item';
+      btn.textContent = files[i];
+      btn.setAttribute('data-file', files[i]);
+      btn.addEventListener('click', handleFileClick);
+      fileListEl.appendChild(btn);
+    }
+  }
+
+  function handleFileClick(e) {
+    var file = e.currentTarget.getAttribute('data-file');
+    loadFile(file);
+  }
+
+  function setActiveFile(file) {
+    var items = fileListEl.querySelectorAll('.file-item');
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].getAttribute('data-file') === file) {
+        items[i].classList.add('active');
+      } else {
+        items[i].classList.remove('active');
+      }
+    }
+  }
+
+  function setStatus(text, className) {
+    toolbarStatus.textContent = text;
+    toolbarStatus.className = 'toolbar-status';
+    if (className) toolbarStatus.classList.add(className);
+  }
+
+  function loadFile(file) {
+    currentFile = file;
+    setActiveFile(file);
+    toolbarFile.textContent = 'config/' + file;
+    setStatus('Loading...', '');
+    saveBtn.disabled = true;
+
+    fetch('/api/config/read?file=' + encodeURIComponent(file), { credentials: 'same-origin' })
+      .then(function(r) {
+        if (!r.ok) throw new Error('Failed to load file');
+        return r.json();
+      })
+      .then(function(data) {
+        originalContent = data.content;
+        showEditor(data.content);
+        setStatus('', '');
+      })
+      .catch(function(err) {
+        setStatus(err.message, 'status-error');
+      });
+  }
+
+  function showEditor(content) {
+    // Remove empty state if present
+    if (emptyState && emptyState.parentNode) {
+      emptyState.parentNode.removeChild(emptyState);
+      emptyState = null;
+    }
+
+    // Remove existing editor
+    if (editorEl && editorEl.parentNode) {
+      editorEl.parentNode.removeChild(editorEl);
+    }
+
+    editorEl = document.createElement('textarea');
+    editorEl.className = 'editor';
+    editorEl.spellcheck = false;
+    editorEl.value = content;
+    editorEl.addEventListener('input', handleEditorInput);
+    editorEl.addEventListener('keydown', handleEditorKeydown);
+    editorWrap.appendChild(editorEl);
+    editorEl.focus();
+  }
+
+  function handleEditorInput() {
+    if (!editorEl) return;
+    var modified = editorEl.value !== originalContent;
+    saveBtn.disabled = !modified;
+    if (modified) {
+      setStatus('Modified', 'status-modified');
+    } else {
+      setStatus('', '');
+    }
+  }
+
+  function handleEditorKeydown(e) {
+    // Tab inserts 2 spaces
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      var start = editorEl.selectionStart;
+      var end = editorEl.selectionEnd;
+      var val = editorEl.value;
+      editorEl.value = val.substring(0, start) + '  ' + val.substring(end);
+      editorEl.selectionStart = editorEl.selectionEnd = start + 2;
+      handleEditorInput();
+      return;
+    }
+
+    // Cmd+S / Ctrl+S to save
+    if (e.key === 's' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      if (!saveBtn.disabled) saveFile();
+    }
+  }
+
+  function saveFile() {
+    if (!currentFile || !editorEl) return;
+
+    var content = editorEl.value;
+    saveBtn.disabled = true;
+    setStatus('Saving...', 'status-saving');
+
+    fetch('/api/config/write', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        file: currentFile,
+        content: content,
+        message: 'config: update ' + currentFile + ' via editor'
+      })
+    })
+    .then(function(r) {
+      return r.json().then(function(data) {
+        if (!r.ok) throw new Error(data.error || 'Save failed');
+        return data;
+      });
+    })
+    .then(function(data) {
+      originalContent = content;
+      setStatus('Saved. Redeploying...', 'status-saved');
+      saveBtn.disabled = true;
+    })
+    .catch(function(err) {
+      setStatus('Error: ' + err.message, 'status-error');
+      saveBtn.disabled = false;
+    });
+  }
+
+  saveBtn.addEventListener('click', saveFile);
+
+  // Global keyboard shortcut
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 's' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      if (!saveBtn.disabled) saveFile();
+    }
+  });
+})();
+</script>
+</body>
+</html>
