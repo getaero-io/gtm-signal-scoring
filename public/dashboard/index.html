@@ -1,0 +1,1487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Signal Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>&#x26A1;</text></svg>">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-0: #0a0a0a;
+  --bg-1: #111111;
+  --bg-2: #1a1a1a;
+  --bg-3: #222222;
+  --border: #2a2a2a;
+  --border-hover: #3a3a3a;
+  --text-primary: #e0e0e0;
+  --text-secondary: #888888;
+  --text-muted: #555555;
+  --accent: #3b82f6;
+  --accent-dim: rgba(59, 130, 246, 0.15);
+  --success: #22c55e;
+  --success-dim: rgba(34, 197, 94, 0.15);
+  --warning: #eab308;
+  --warning-dim: rgba(234, 179, 8, 0.15);
+  --error: #ef4444;
+  --error-dim: rgba(239, 68, 68, 0.15);
+  --radius: 8px;
+  --radius-sm: 4px;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --shadow: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+  --transition: 150ms ease;
+}
+
+html { background: var(--bg-0); color: var(--text-primary); font-family: var(--font-sans); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+body { min-height: 100vh; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Layout */
+.app { max-width: 1400px; margin: 0 auto; padding: 0 24px 48px; }
+
+/* Header */
+.header { display: flex; align-items: center; justify-content: space-between; padding: 20px 0; border-bottom: 1px solid var(--border); margin-bottom: 0; }
+.header-left { display: flex; align-items: center; gap: 16px; }
+.header-title { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+.header-tenant { font-size: 12px; color: var(--text-secondary); background: var(--bg-2); border: 1px solid var(--border); padding: 2px 10px; border-radius: 12px; }
+.header-right { display: flex; align-items: center; gap: 12px; }
+.header-time { font-size: 12px; color: var(--text-muted); }
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 13px; font-family: var(--font-sans); font-weight: 500; color: var(--text-primary); background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: all var(--transition); white-space: nowrap; }
+.btn:hover { background: var(--bg-3); border-color: var(--border-hover); }
+.btn:active { transform: scale(0.97); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover { background: #2563eb; }
+.btn-sm { padding: 3px 10px; font-size: 12px; }
+.btn svg { width: 14px; height: 14px; }
+
+/* Tabs */
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 24px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.tab { padding: 12px 18px; font-size: 13px; font-weight: 500; color: var(--text-secondary); cursor: pointer; border-bottom: 2px solid transparent; transition: all var(--transition); white-space: nowrap; user-select: none; }
+.tab:hover { color: var(--text-primary); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* Tab content */
+.tab-content { display: none; animation: fadeIn 200ms ease; }
+.tab-content.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Cards */
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat-card { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; transition: border-color var(--transition); }
+.stat-card:hover { border-color: var(--border-hover); }
+.stat-card.clickable { cursor: pointer; }
+.stat-card.clickable:hover { border-color: var(--accent); }
+.stat-card.clickable.selected { border-color: var(--accent); background: var(--accent-dim); }
+.stat-label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+.stat-value { font-size: 28px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; }
+.stat-value.loading { background: var(--bg-3); border-radius: 4px; height: 34px; width: 80px; animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+.stat-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+/* Toolbar / Filters */
+.toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.search-input { flex: 1; min-width: 200px; max-width: 360px; padding: 7px 12px 7px 34px; font-size: 13px; font-family: var(--font-sans); color: var(--text-primary); background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius-sm); outline: none; transition: border-color var(--transition); }
+.search-input:focus { border-color: var(--accent); }
+.search-input::placeholder { color: var(--text-muted); }
+.search-wrap { position: relative; flex: 1; min-width: 200px; max-width: 360px; }
+.search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--text-muted); pointer-events: none; }
+.search-wrap .search-input { width: 100%; }
+.filter-select { padding: 7px 28px 7px 10px; font-size: 13px; font-family: var(--font-sans); color: var(--text-primary); background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius-sm); outline: none; cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; }
+.filter-select:focus { border-color: var(--accent); }
+
+/* Table */
+.table-wrap { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.table-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+thead { position: sticky; top: 0; z-index: 1; }
+th { padding: 10px 16px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); background: var(--bg-3); border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; user-select: none; }
+th.sortable { cursor: pointer; }
+th.sortable:hover { color: var(--text-primary); }
+th .sort-arrow { margin-left: 4px; opacity: 0.3; }
+th.sorted .sort-arrow { opacity: 1; color: var(--accent); }
+td { padding: 10px 16px; font-size: 13px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+tbody tr { transition: background var(--transition); }
+tbody tr:hover { background: rgba(255,255,255,0.02); }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr.expandable { cursor: pointer; }
+tbody tr.expanded { background: rgba(59, 130, 246, 0.04); }
+.expand-row td { padding: 0; background: var(--bg-1); }
+.expand-content { padding: 16px 24px; font-size: 13px; line-height: 1.7; animation: fadeIn 150ms ease; }
+.expand-content .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.expand-content .detail-section h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); margin-bottom: 8px; }
+.expand-content .detail-row { display: flex; gap: 8px; margin-bottom: 4px; }
+.expand-content .detail-label { color: var(--text-secondary); min-width: 100px; flex-shrink: 0; }
+.expand-content .detail-value { color: var(--text-primary); word-break: break-all; }
+.expand-content pre { background: var(--bg-0); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; font-family: var(--font-mono); font-size: 12px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto; }
+.expand-content .msg-block { background: var(--bg-0); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; margin-top: 8px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
+
+/* Badges */
+.badge { display: inline-flex; align-items: center; padding: 2px 8px; font-size: 11px; font-weight: 600; border-radius: 10px; white-space: nowrap; line-height: 1.5; }
+.badge-green { background: var(--success-dim); color: var(--success); }
+.badge-yellow { background: var(--warning-dim); color: var(--warning); }
+.badge-red { background: var(--error-dim); color: var(--error); }
+.badge-blue { background: var(--accent-dim); color: var(--accent); }
+.badge-gray { background: rgba(136,136,136,0.15); color: var(--text-secondary); }
+.mono { font-family: var(--font-mono); font-size: 12px; }
+.truncate { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: middle; }
+.text-muted { color: var(--text-secondary); }
+.text-sm { font-size: 12px; }
+
+/* Pagination */
+.pagination { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-top: 1px solid var(--border); font-size: 13px; color: var(--text-secondary); }
+.pagination-controls { display: flex; align-items: center; gap: 8px; }
+.pagination .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* Bar chart (CSS only) */
+.bar-chart { display: flex; flex-direction: column; gap: 8px; }
+.bar-row { display: flex; align-items: center; gap: 12px; }
+.bar-label { font-size: 12px; color: var(--text-secondary); min-width: 90px; text-align: right; text-transform: capitalize; }
+.bar-track { flex: 1; height: 20px; background: var(--bg-0); border-radius: 3px; overflow: hidden; position: relative; }
+.bar-fill { height: 100%; border-radius: 3px; transition: width 500ms ease; min-width: 2px; }
+.bar-count { font-size: 12px; color: var(--text-secondary); min-width: 36px; font-family: var(--font-mono); }
+
+/* Overview grid */
+.overview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+@media (max-width: 900px) { .overview-grid { grid-template-columns: 1fr; } }
+.overview-section { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+.overview-section h3 { font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px; }
+
+/* Activity list */
+.activity-list { display: flex; flex-direction: column; gap: 0; }
+.activity-item { display: flex; align-items: flex-start; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.activity-item:last-child { border-bottom: none; }
+.activity-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-top: 7px; flex-shrink: 0; }
+.activity-body { flex: 1; min-width: 0; }
+.activity-action { font-size: 13px; font-weight: 500; }
+.activity-detail { font-size: 12px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity-time { font-size: 11px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+
+/* Loading / Error / Empty */
+.state-msg { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; text-align: center; }
+.state-msg h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+.state-msg p { font-size: 13px; color: var(--text-secondary); max-width: 360px; }
+.state-msg .btn { margin-top: 16px; }
+
+.spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 600ms linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner-lg { width: 32px; height: 32px; border-width: 3px; }
+
+/* Toggle */
+.toggle-wrap { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); }
+.toggle { position: relative; width: 36px; height: 20px; background: var(--bg-3); border: 1px solid var(--border); border-radius: 10px; cursor: pointer; transition: all var(--transition); }
+.toggle.on { background: var(--accent); border-color: var(--accent); }
+.toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; background: #fff; border-radius: 50%; transition: transform var(--transition); }
+.toggle.on::after { transform: translateX(16px); }
+
+/* Skeleton rows */
+.skel-cell { height: 14px; background: var(--bg-3); border-radius: 3px; animation: pulse 1.5s infinite; }
+
+/* Quality cards */
+.quality-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .app { padding: 0 12px 32px; }
+  .header { flex-wrap: wrap; gap: 8px; }
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+  .toolbar { flex-direction: column; align-items: stretch; }
+  .search-wrap { max-width: none; }
+  td, th { padding: 8px 10px; }
+}
+</style>
+</head>
+<body>
+<script>
+  fetch('/api/auth/check').then(function(r) {
+    if (!r.ok) window.location.href = '/login.html';
+  }).catch(function() { window.location.href = '/login.html'; });
+</script>
+<div class="app">
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <h1 class="header-title">Signal Dashboard</h1>
+      <span class="header-tenant" id="tenant-badge">GTM Signals</span>
+    </div>
+    <div class="header-right">
+      <span class="header-time" id="last-refresh">Last refresh: --</span>
+      <button class="btn" id="btn-refresh">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+        Refresh
+      </button>
+    </div>
+  </header>
+
+  <!-- Tabs -->
+  <nav class="tabs" id="tabs" role="tablist">
+    <div class="tab active" data-tab="overview" role="tab" tabindex="0">Overview</div>
+    <div class="tab" data-tab="people" role="tab" tabindex="0">People</div>
+    <div class="tab" data-tab="companies" role="tab" tabindex="0">Companies</div>
+    <div class="tab" data-tab="conversations" role="tab" tabindex="0">Conversations</div>
+    <div class="tab" data-tab="webhooks" role="tab" tabindex="0">Webhooks</div>
+    <div class="tab" data-tab="events" role="tab" tabindex="0">Events</div>
+    <div class="tab" data-tab="quality" role="tab" tabindex="0">Data Quality</div>
+  </nav>
+
+  <!-- Overview Tab -->
+  <div class="tab-content active" id="tab-overview">
+    <div class="stats-row" id="overview-stats">
+      <div class="stat-card"><div class="stat-label">Total Leads</div><div class="stat-value loading" id="stat-leads"></div></div>
+      <div class="stat-card"><div class="stat-label">Active Conversations</div><div class="stat-value loading" id="stat-conversations"></div></div>
+      <div class="stat-card"><div class="stat-label">Webhook Events</div><div class="stat-value loading" id="stat-webhooks"></div><div class="stat-sub" id="stat-webhooks-sub"></div></div>
+      <div class="stat-card"><div class="stat-label">Quality Score</div><div class="stat-value loading" id="stat-quality"></div></div>
+    </div>
+    <div class="overview-grid">
+      <div class="overview-section">
+        <h3>Recent Activity</h3>
+        <div id="activity-list" class="activity-list">
+          <div class="state-msg"><div class="spinner"></div></div>
+        </div>
+      </div>
+      <div>
+        <div class="overview-section" style="margin-bottom:24px;">
+          <h3>Lead Statuses</h3>
+          <div id="lead-status-chart" class="bar-chart"></div>
+        </div>
+        <div class="overview-section">
+          <h3>Conversation Statuses</h3>
+          <div id="conv-status-chart" class="bar-chart"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- People Tab -->
+  <div class="tab-content" id="tab-people">
+    <div class="toolbar">
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input class="search-input" id="people-search" type="text" placeholder="Search name, email, company...">
+      </div>
+      <select class="filter-select" id="people-status-filter">
+        <option value="">All Statuses</option>
+        <option value="new">New</option>
+        <option value="qualified">Qualified</option>
+        <option value="replied">Replied</option>
+        <option value="nurture">Nurture</option>
+        <option value="disqualified">Disqualified</option>
+      </select>
+      <select class="filter-select" id="people-source-filter">
+        <option value="">All Sources</option>
+        <option value="linkedin">LinkedIn</option>
+        <option value="email">Email</option>
+        <option value="webhook">Webhook</option>
+        <option value="csv">CSV</option>
+        <option value="manual">Manual</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table id="people-table">
+          <thead>
+            <tr>
+              <th class="sortable" data-sort="name">Name <span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort="email">Email <span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort="company">Company <span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort="title">Title <span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort="source">Source <span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort="status">Status <span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort="score">Score <span class="sort-arrow"></span></th>
+              <th class="sortable sorted" data-sort="submitted_at">Created <span class="sort-arrow"></span></th>
+            </tr>
+          </thead>
+          <tbody id="people-tbody"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="people-pagination"></div>
+    </div>
+  </div>
+
+  <!-- Companies Tab -->
+  <div class="tab-content" id="tab-companies">
+    <div class="toolbar">
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input class="search-input" id="companies-search" type="text" placeholder="Search company name or domain...">
+      </div>
+    </div>
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table id="companies-table">
+          <thead>
+            <tr>
+              <th class="sortable" data-sort="name">Company Name <span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort="domain">Domain <span class="sort-arrow"></span></th>
+              <th class="sortable sorted" data-sort="lead_count">Lead Count <span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort="avg_score">Avg Score <span class="sort-arrow"></span></th>
+              <th>Statuses</th>
+            </tr>
+          </thead>
+          <tbody id="companies-tbody"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="companies-pagination"></div>
+    </div>
+  </div>
+
+  <!-- Conversations Tab -->
+  <div class="tab-content" id="tab-conversations">
+    <div class="toolbar">
+      <select class="filter-select" id="conv-status-filter">
+        <option value="">All Statuses</option>
+        <option value="pending">Pending</option>
+        <option value="approved">Approved</option>
+        <option value="sent">Sent</option>
+        <option value="rejected">Rejected</option>
+      </select>
+      <select class="filter-select" id="conv-channel-filter">
+        <option value="">All Channels</option>
+        <option value="email">Email</option>
+        <option value="linkedin">LinkedIn</option>
+      </select>
+      <select class="filter-select" id="conv-direction-filter">
+        <option value="">All Directions</option>
+        <option value="inbound">Inbound</option>
+        <option value="outbound">Outbound</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table id="conversations-table">
+          <thead>
+            <tr>
+              <th>Lead Name</th>
+              <th>Company</th>
+              <th>Channel</th>
+              <th>Status</th>
+              <th>Original Message</th>
+              <th class="sortable sorted" data-sort="created_at">Created <span class="sort-arrow"></span></th>
+            </tr>
+          </thead>
+          <tbody id="conversations-tbody"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="conversations-pagination"></div>
+    </div>
+  </div>
+
+  <!-- Webhooks Tab -->
+  <div class="tab-content" id="tab-webhooks">
+    <div class="toolbar">
+      <select class="filter-select" id="webhooks-source-filter">
+        <option value="">All Sources</option>
+        <option value="lemlist">Lemlist</option>
+        <option value="smartlead">SmartLead</option>
+        <option value="heyreach">HeyReach</option>
+        <option value="deepline">Deepline</option>
+      </select>
+      <select class="filter-select" id="webhooks-status-filter">
+        <option value="">All Statuses</option>
+        <option value="received">Received</option>
+        <option value="processing">Processing</option>
+        <option value="processed">Processed</option>
+        <option value="skipped">Skipped</option>
+        <option value="error">Error</option>
+      </select>
+      <div class="toggle-wrap" style="margin-left:auto;">
+        <span>Live</span>
+        <div class="toggle" id="webhooks-auto-refresh"></div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table id="webhooks-table">
+          <thead>
+            <tr>
+              <th>Received</th>
+              <th>Source</th>
+              <th>Event Type</th>
+              <th>Status</th>
+              <th>Lead</th>
+              <th>Payload</th>
+            </tr>
+          </thead>
+          <tbody id="webhooks-tbody"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="webhooks-pagination"></div>
+    </div>
+  </div>
+
+  <!-- Events Tab -->
+  <div class="tab-content" id="tab-events">
+    <div class="toolbar">
+      <select class="filter-select" id="events-action-filter">
+        <option value="">All Actions</option>
+        <option value="lead_created">Lead Created</option>
+        <option value="lead_qualified">Lead Qualified</option>
+        <option value="lead_scored">Lead Scored</option>
+        <option value="conversation_created">Conversation Created</option>
+        <option value="conversation_sent">Conversation Sent</option>
+        <option value="email_enriched">Email Enriched</option>
+        <option value="webhook_received">Webhook Received</option>
+      </select>
+      <input class="search-input" id="events-lead-filter" type="text" placeholder="Filter by Lead ID..." style="max-width:220px;">
+      <div class="toggle-wrap" style="margin-left:auto;">
+        <span>Auto-refresh</span>
+        <div class="toggle" id="events-auto-refresh"></div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table id="events-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Action</th>
+              <th>Lead</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody id="events-tbody"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="events-pagination"></div>
+    </div>
+  </div>
+
+  <!-- Data Quality Tab -->
+  <div class="tab-content" id="tab-quality">
+    <div class="quality-cards" id="quality-cards"></div>
+    <div class="table-wrap" id="quality-table-wrap" style="display:none;">
+      <div class="table-scroll">
+        <table id="quality-table">
+          <thead>
+            <tr>
+              <th>Lead Name</th>
+              <th>Email</th>
+              <th>Company</th>
+              <th>Issue Type</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody id="quality-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  /* ========== State ========== */
+  var state = {
+    currentTab: 'overview',
+    people: { page: 1, limit: 50, sort: 'submitted_at', order: 'desc', status: '', source: '', search: '' },
+    companies: { page: 1, limit: 50, sort: 'lead_count', order: 'desc', search: '' },
+    conversations: { page: 1, limit: 50, sort: 'created_at', order: 'desc', status: '', channel: '', direction: '' },
+    webhooks: { page: 1, limit: 50, source: '', status: '' },
+    events: { page: 1, limit: 50, action: '', lead_id: '' },
+    quality: { selectedIssue: null, data: null },
+    autoRefresh: false,
+    autoRefreshTimer: null,
+    webhooksAutoRefresh: false,
+    webhooksAutoRefreshTimer: null,
+    expandedRows: {},
+  };
+
+  /* ========== Utilities ========== */
+  function formatNumber(n) {
+    if (n == null) return '--';
+    return Number(n).toLocaleString('en-US');
+  }
+
+  function relativeTime(dateStr) {
+    if (!dateStr) return '--';
+    var now = Date.now();
+    var then = new Date(dateStr).getTime();
+    if (isNaN(then)) return dateStr;
+    var diff = now - then;
+    var seconds = Math.floor(diff / 1000);
+    if (seconds < 60) return 'just now';
+    var minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return minutes + 'm ago';
+    var hours = Math.floor(minutes / 60);
+    if (hours < 24) return hours + 'h ago';
+    var days = Math.floor(hours / 24);
+    if (days < 30) return days + 'd ago';
+    var months = Math.floor(days / 30);
+    if (months < 12) return months + 'mo ago';
+    return Math.floor(months / 12) + 'y ago';
+  }
+
+  function esc(str) {
+    if (str == null) return '';
+    var d = document.createElement('div');
+    d.textContent = String(str);
+    return d.innerHTML;
+  }
+
+  function truncate(str, len) {
+    if (!str) return '';
+    return str.length > len ? str.substring(0, len) + '...' : str;
+  }
+
+  function scoreBadge(score) {
+    if (score == null) return '<span class="badge badge-gray">--</span>';
+    var n = Number(score);
+    var cls = n > 70 ? 'badge-green' : n >= 40 ? 'badge-yellow' : 'badge-red';
+    return '<span class="badge ' + cls + '">' + n + '</span>';
+  }
+
+  function statusBadge(status) {
+    if (!status) return '<span class="badge badge-gray">--</span>';
+    var s = String(status).toLowerCase();
+    var map = {
+      'new': 'badge-blue', qualified: 'badge-green', replied: 'badge-green', sent: 'badge-green',
+      approved: 'badge-green', nurture: 'badge-yellow', pending: 'badge-yellow',
+      disqualified: 'badge-red', rejected: 'badge-red', error: 'badge-red',
+    };
+    return '<span class="badge ' + (map[s] || 'badge-gray') + '">' + esc(status) + '</span>';
+  }
+
+  function debounce(fn, ms) {
+    var t;
+    return function() {
+      var self = this, args = arguments;
+      clearTimeout(t);
+      t = setTimeout(function() { fn.apply(self, args); }, ms);
+    };
+  }
+
+  function skeletonRows(cols, count) {
+    var html = '';
+    for (var i = 0; i < count; i++) {
+      html += '<tr>';
+      for (var c = 0; c < cols; c++) {
+        var w = 40 + Math.random() * 60;
+        html += '<td><div class="skel-cell" style="width:' + w + '%"></div></td>';
+      }
+      html += '</tr>';
+    }
+    return html;
+  }
+
+  /* Safe DOM builder helpers - avoids raw innerHTML for user-controlled data */
+  function createEl(tag, attrs, children) {
+    var el = document.createElement(tag);
+    if (attrs) {
+      Object.keys(attrs).forEach(function(k) {
+        if (k === 'className') el.className = attrs[k];
+        else if (k === 'style') el.setAttribute('style', attrs[k]);
+        else if (k === 'textContent') el.textContent = attrs[k];
+        else if (k.startsWith('data-')) el.setAttribute(k, attrs[k]);
+        else if (k === 'tabindex') el.setAttribute('tabindex', attrs[k]);
+        else if (k === 'disabled') el.disabled = attrs[k];
+        else if (k === 'colspan') el.setAttribute('colspan', attrs[k]);
+        else if (k === 'href') el.setAttribute('href', attrs[k]);
+        else if (k === 'target') el.setAttribute('target', attrs[k]);
+        else if (k === 'id') el.id = attrs[k];
+        else if (k === 'type') el.setAttribute('type', attrs[k]);
+        else if (k === 'placeholder') el.setAttribute('placeholder', attrs[k]);
+        else el.setAttribute(k, attrs[k]);
+      });
+    }
+    if (children) {
+      if (typeof children === 'string') el.textContent = children;
+      else if (Array.isArray(children)) children.forEach(function(ch) { if (ch) el.appendChild(ch); });
+    }
+    return el;
+  }
+
+  function textNode(str) {
+    return document.createTextNode(str || '');
+  }
+
+  function renderPagination(container, page, total, limit, onPage) {
+    var totalPages = Math.max(1, Math.ceil(total / limit));
+    var start = total === 0 ? 0 : (page - 1) * limit + 1;
+    var end = Math.min(page * limit, total);
+
+    container.textContent = '';
+
+    var info = createEl('span', {}, 'Showing ' + start + '-' + end + ' of ' + formatNumber(total));
+    var controls = createEl('div', { className: 'pagination-controls' });
+
+    var prevBtn = createEl('button', { className: 'btn btn-sm' }, 'Prev');
+    if (page <= 1) prevBtn.disabled = true;
+    prevBtn.addEventListener('click', function() { if (page > 1) onPage(page - 1); });
+
+    var pageInfo = createEl('span', {}, 'Page ' + page + ' of ' + totalPages);
+
+    var nextBtn = createEl('button', { className: 'btn btn-sm' }, 'Next');
+    if (page >= totalPages) nextBtn.disabled = true;
+    nextBtn.addEventListener('click', function() { if (page < totalPages) onPage(page + 1); });
+
+    controls.appendChild(prevBtn);
+    controls.appendChild(pageInfo);
+    controls.appendChild(nextBtn);
+    container.appendChild(info);
+    container.appendChild(controls);
+  }
+
+  function showLoading(tbodyId, cols) {
+    var tbody = document.getElementById(tbodyId);
+    tbody.textContent = '';
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < 8; i++) {
+      var tr = document.createElement('tr');
+      for (var c = 0; c < cols; c++) {
+        var td = document.createElement('td');
+        var div = document.createElement('div');
+        div.className = 'skel-cell';
+        div.style.width = (40 + Math.random() * 60) + '%';
+        td.appendChild(div);
+        tr.appendChild(td);
+      }
+      frag.appendChild(tr);
+    }
+    tbody.appendChild(frag);
+  }
+
+  function showEmpty(tbodyId, cols, message) {
+    var tbody = document.getElementById(tbodyId);
+    tbody.textContent = '';
+    var tr = document.createElement('tr');
+    var td = document.createElement('td');
+    td.setAttribute('colspan', cols);
+    var div = createEl('div', { className: 'state-msg' });
+    div.appendChild(createEl('h3', {}, 'No data found'));
+    div.appendChild(createEl('p', {}, message));
+    td.appendChild(div);
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  }
+
+  function showError(tbodyId, cols, message, retryFn) {
+    var tbody = document.getElementById(tbodyId);
+    tbody.textContent = '';
+    var tr = document.createElement('tr');
+    var td = document.createElement('td');
+    td.setAttribute('colspan', cols);
+    var div = createEl('div', { className: 'state-msg' });
+    div.appendChild(createEl('h3', {}, 'Failed to load'));
+    div.appendChild(createEl('p', {}, message));
+    var btn = createEl('button', { className: 'btn' }, 'Retry');
+    btn.addEventListener('click', retryFn);
+    div.appendChild(btn);
+    td.appendChild(div);
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  }
+
+  /* ========== API ========== */
+  function api(path, params) {
+    var url = new URL(path, window.location.origin);
+    if (params) {
+      Object.keys(params).forEach(function(k) {
+        if (params[k] !== '' && params[k] != null) url.searchParams.set(k, params[k]);
+      });
+    }
+    return fetch(url.toString()).then(function(res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + res.statusText);
+      return res.json();
+    });
+  }
+
+  /* ========== Tab Navigation ========== */
+  function setTab(name) {
+    state.currentTab = name;
+    document.querySelectorAll('.tab').forEach(function(t) { t.classList.toggle('active', t.dataset.tab === name); });
+    document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.toggle('active', c.id === 'tab-' + name); });
+    window.location.hash = name === 'overview' ? '' : name;
+    state.expandedRows = {};
+    loadTabData(name);
+  }
+
+  document.querySelectorAll('.tab').forEach(function(t) {
+    t.addEventListener('click', function() { setTab(t.dataset.tab); });
+    t.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTab(t.dataset.tab); }
+    });
+  });
+
+  document.getElementById('btn-refresh').addEventListener('click', function() {
+    loadTabData(state.currentTab).then(function() {
+      document.getElementById('last-refresh').textContent = 'Last refresh: just now';
+    });
+  });
+
+  /* ========== Overview ========== */
+  function loadOverview() {
+    var statsEl = ['stat-leads', 'stat-conversations', 'stat-webhooks', 'stat-quality'];
+    statsEl.forEach(function(id) {
+      var el = document.getElementById(id);
+      el.textContent = '';
+      el.className = 'stat-value loading';
+      el.style.color = '';
+    });
+    var subEl = document.getElementById('stat-webhooks-sub');
+    if (subEl) subEl.textContent = '';
+    document.getElementById('activity-list').textContent = '';
+    var spinWrap = createEl('div', { className: 'state-msg' });
+    spinWrap.appendChild(createEl('div', { className: 'spinner' }));
+    document.getElementById('activity-list').appendChild(spinWrap);
+
+    return api('/api/dashboard', { view: 'stats' }).then(function(data) {
+      var vals = [
+        { id: 'stat-leads', val: formatNumber(data.total_leads) },
+        { id: 'stat-conversations', val: formatNumber(data.total_conversations) },
+        { id: 'stat-webhooks', val: formatNumber(data.total_webhook_events) },
+        { id: 'stat-quality', val: (data.data_quality ? formatNumber(data.data_quality.missing_email + data.data_quality.missing_company + data.data_quality.missing_domain) + ' issues' : '--') },
+      ];
+      var webhooksSub = document.getElementById('stat-webhooks-sub');
+      if (webhooksSub) webhooksSub.textContent = data.webhook_events_24h ? data.webhook_events_24h + ' in 24h' : '';
+      vals.forEach(function(v) {
+        var el = document.getElementById(v.id);
+        el.textContent = v.val;
+        el.className = 'stat-value';
+      });
+
+      /* Convert array-of-{status,count} to {status: count} object for bar chart */
+      var leadStatusObj = {};
+      (data.leads_by_status || []).forEach(function(r) { leadStatusObj[r.status] = r.count; });
+      var convStatusObj = {};
+      (data.conversations_by_status || []).forEach(function(r) { convStatusObj[r.status] = r.count; });
+      renderBarChart('lead-status-chart', leadStatusObj, ['#3b82f6', '#22c55e', '#eab308', '#ef4444', '#8b5cf6', '#6b7280']);
+      renderBarChart('conv-status-chart', convStatusObj, ['#eab308', '#22c55e', '#3b82f6', '#ef4444']);
+      renderActivity(data.recent_activity || []);
+    }).catch(function(err) {
+      statsEl.forEach(function(id) {
+        var el = document.getElementById(id);
+        el.textContent = 'ERR';
+        el.className = 'stat-value';
+        el.style.color = 'var(--error)';
+      });
+      var actList = document.getElementById('activity-list');
+      actList.textContent = '';
+      var errDiv = createEl('div', { className: 'state-msg' });
+      errDiv.appendChild(createEl('p', {}, err.message));
+      var retryBtn = createEl('button', { className: 'btn' }, 'Retry');
+      retryBtn.addEventListener('click', loadOverview);
+      errDiv.appendChild(retryBtn);
+      actList.appendChild(errDiv);
+    });
+  }
+
+  function renderBarChart(containerId, data, colors) {
+    var container = document.getElementById(containerId);
+    container.textContent = '';
+    var entries = Object.keys(data).map(function(k) { return [k, data[k]]; });
+    if (!entries.length) {
+      container.appendChild(createEl('span', { className: 'text-muted text-sm' }, 'No data'));
+      return;
+    }
+    var max = Math.max.apply(null, entries.map(function(e) { return e[1]; }).concat([1]));
+    entries.forEach(function(entry, i) {
+      var label = entry[0];
+      var count = entry[1];
+      var pct = Math.max((count / max) * 100, 2);
+      var color = colors[i % colors.length];
+
+      var row = createEl('div', { className: 'bar-row' });
+      row.appendChild(createEl('span', { className: 'bar-label' }, label));
+      var track = createEl('div', { className: 'bar-track' });
+      var fill = createEl('div', { className: 'bar-fill', style: 'width:' + pct + '%;background:' + color });
+      track.appendChild(fill);
+      row.appendChild(track);
+      row.appendChild(createEl('span', { className: 'bar-count' }, formatNumber(count)));
+      container.appendChild(row);
+    });
+  }
+
+  function renderActivity(items) {
+    var container = document.getElementById('activity-list');
+    container.textContent = '';
+    if (!items.length) {
+      container.appendChild(createEl('span', { className: 'text-muted text-sm' }, 'No recent activity'));
+      return;
+    }
+    items.slice(0, 10).forEach(function(item) {
+      var dotColor = (item.action && item.action.indexOf('error') !== -1) ? 'var(--error)' :
+                     (item.action && item.action.indexOf('sent') !== -1) ? 'var(--success)' : 'var(--accent)';
+      var row = createEl('div', { className: 'activity-item' });
+      row.appendChild(createEl('div', { className: 'activity-dot', style: 'background:' + dotColor }));
+      var body = createEl('div', { className: 'activity-body' });
+      body.appendChild(createEl('div', { className: 'activity-action' }, item.action || 'Event'));
+      body.appendChild(createEl('div', { className: 'activity-detail' }, item.details || item.lead_name || ''));
+      row.appendChild(body);
+      row.appendChild(createEl('span', { className: 'activity-time' }, relativeTime(item.created_at || item.timestamp)));
+      container.appendChild(row);
+    });
+  }
+
+  /* ========== People ========== */
+  function loadPeople() {
+    var s = state.people;
+    showLoading('people-tbody', 8);
+    return api('/api/dashboard', {
+      view: 'leads', page: s.page, limit: s.limit, status: s.status, source: s.source,
+      search: s.search, sort: s.sort, order: s.order
+    }).then(function(data) {
+      var leads = data.leads || data.data || data.items || [];
+      var total = data.total || data.count || leads.length;
+      if (!leads.length) {
+        showEmpty('people-tbody', 8, 'No leads match your filters.');
+        renderPagination(document.getElementById('people-pagination'), 1, 0, s.limit, function() {});
+        return;
+      }
+      var tbody = document.getElementById('people-tbody');
+      tbody.textContent = '';
+      var frag = document.createDocumentFragment();
+      leads.forEach(function(l, i) {
+        var name = l.name || (l.first_name && l.last_name ? l.first_name + ' ' + l.last_name : l.first_name || '--');
+
+        var tr = document.createElement('tr');
+        tr.className = 'expandable';
+        tr.setAttribute('data-idx', i);
+        tr.setAttribute('tabindex', '0');
+
+        var tdName = document.createElement('td'); tdName.textContent = name; tr.appendChild(tdName);
+        var tdEmail = document.createElement('td'); var emailSpan = createEl('span', { className: 'mono' }, l.email || '--'); tdEmail.appendChild(emailSpan); tr.appendChild(tdEmail);
+        var tdCompany = document.createElement('td'); tdCompany.textContent = l.company || l.company_name || '--'; tr.appendChild(tdCompany);
+        var tdTitle = document.createElement('td'); tdTitle.className = 'text-muted'; tdTitle.textContent = truncate(l.title || l.job_title || '', 40); tr.appendChild(tdTitle);
+        var tdSource = document.createElement('td'); tdSource.textContent = l.source || '--'; tr.appendChild(tdSource);
+
+        /* Status and score badges use controlled template strings (no user input in tag structure) */
+        var tdStatus = document.createElement('td'); tdStatus.insertAdjacentHTML('beforeend', statusBadge(l.status)); tr.appendChild(tdStatus);
+        var tdScore = document.createElement('td'); tdScore.insertAdjacentHTML('beforeend', scoreBadge(l.score)); tr.appendChild(tdScore);
+        var tdCreated = document.createElement('td'); tdCreated.className = 'text-muted'; tdCreated.textContent = relativeTime(l.submitted_at); tr.appendChild(tdCreated);
+
+        /* Expand row */
+        var expandTr = document.createElement('tr');
+        expandTr.className = 'expand-row';
+        expandTr.id = 'expand-people-' + i;
+        expandTr.style.display = 'none';
+        var expandTd = document.createElement('td');
+        expandTd.setAttribute('colspan', '8');
+
+        var expandContent = document.createElement('div');
+        expandContent.className = 'expand-content';
+        buildLeadDetail(expandContent, l);
+        expandTd.appendChild(expandContent);
+        expandTr.appendChild(expandTd);
+
+        tr.addEventListener('click', makeToggler(tr, 'people', i));
+        tr.addEventListener('keydown', makeKeyHandler(tr, 'people', i));
+
+        frag.appendChild(tr);
+        frag.appendChild(expandTr);
+      });
+      tbody.appendChild(frag);
+      renderPagination(document.getElementById('people-pagination'), s.page, total, s.limit, function(p) { s.page = p; loadPeople(); });
+    }).catch(function(err) {
+      showError('people-tbody', 8, err.message, loadPeople);
+    });
+  }
+
+  function buildLeadDetail(container, l) {
+    var grid = createEl('div', { className: 'detail-grid' });
+
+    /* Profile section */
+    var profileSec = createEl('div', { className: 'detail-section' });
+    profileSec.appendChild(createEl('h4', {}, 'Profile'));
+    var name = l.name || [l.first_name, l.last_name].filter(Boolean).join(' ');
+    addDetailRow(profileSec, 'Name', name);
+    addDetailRow(profileSec, 'Email', l.email, true);
+    addDetailRow(profileSec, 'Title', l.title || l.job_title);
+    addDetailRow(profileSec, 'Company', l.company || l.company_name);
+    addDetailRow(profileSec, 'Domain', l.domain);
+    if (l.linkedin_url) {
+      var row = createEl('div', { className: 'detail-row' });
+      row.appendChild(createEl('span', { className: 'detail-label' }, 'LinkedIn'));
+      var val = createEl('span', { className: 'detail-value' });
+      var link = createEl('a', { href: l.linkedin_url, target: '_blank' }, l.linkedin_url);
+      val.appendChild(link);
+      row.appendChild(val);
+      profileSec.appendChild(row);
+    }
+    addDetailRow(profileSec, 'Source', l.source);
+    addDetailRow(profileSec, 'Status', l.status);
+    addDetailRow(profileSec, 'Score', l.score != null ? String(l.score) : null);
+    addDetailRow(profileSec, 'Created', l.submitted_at);
+    grid.appendChild(profileSec);
+
+    /* Metadata section */
+    var metaSec = createEl('div', { className: 'detail-section' });
+    metaSec.appendChild(createEl('h4', {}, 'Metadata'));
+    var pre = document.createElement('pre');
+    pre.textContent = JSON.stringify(l.metadata || l.qualification || l, null, 2);
+    metaSec.appendChild(pre);
+    grid.appendChild(metaSec);
+
+    container.appendChild(grid);
+  }
+
+  function addDetailRow(parent, label, value, isMono) {
+    if (value == null || value === '') return;
+    var row = createEl('div', { className: 'detail-row' });
+    row.appendChild(createEl('span', { className: 'detail-label' }, label));
+    var valSpan = createEl('span', { className: 'detail-value' + (isMono ? ' mono' : '') }, String(value));
+    row.appendChild(valSpan);
+    parent.appendChild(row);
+  }
+
+  function makeToggler(row, prefix, idx) {
+    return function() { toggleExpand(row, prefix, idx); };
+  }
+
+  function makeKeyHandler(row, prefix, idx) {
+    return function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); toggleExpand(row, prefix, idx); }
+      if (e.key === 'ArrowDown') { e.preventDefault(); focusNextRow(row, 1); }
+      if (e.key === 'ArrowUp') { e.preventDefault(); focusNextRow(row, -1); }
+    };
+  }
+
+  function toggleExpand(row, prefix, idx) {
+    var expandRow = document.getElementById('expand-' + prefix + '-' + idx);
+    if (!expandRow) return;
+    var isExpanded = expandRow.style.display !== 'none';
+    expandRow.style.display = isExpanded ? 'none' : 'table-row';
+    row.classList.toggle('expanded', !isExpanded);
+  }
+
+  function focusNextRow(current, direction) {
+    var rows = Array.from(current.parentElement.querySelectorAll('tr.expandable'));
+    var idx = rows.indexOf(current);
+    var next = rows[idx + direction];
+    if (next) next.focus();
+  }
+
+  /* Sort headers - people */
+  document.querySelectorAll('#tab-people th.sortable').forEach(function(th) {
+    th.addEventListener('click', function() {
+      var sort = th.dataset.sort;
+      if (state.people.sort === sort) { state.people.order = state.people.order === 'desc' ? 'asc' : 'desc'; }
+      else { state.people.sort = sort; state.people.order = 'asc'; }
+      state.people.page = 1;
+      updateSortHeaders('people-table', state.people.sort, state.people.order);
+      loadPeople();
+    });
+  });
+
+  function updateSortHeaders(tableId, sort, order) {
+    document.querySelectorAll('#' + tableId + ' th.sortable').forEach(function(th) {
+      var isSorted = th.dataset.sort === sort;
+      th.classList.toggle('sorted', isSorted);
+      var arrow = th.querySelector('.sort-arrow');
+      if (arrow) arrow.textContent = isSorted ? (order === 'asc' ? '\u25B2' : '\u25BC') : '';
+    });
+  }
+
+  /* Search & filters */
+  document.getElementById('people-search').addEventListener('input', debounce(function() {
+    state.people.search = this.value; state.people.page = 1; loadPeople();
+  }, 300));
+  document.getElementById('people-status-filter').addEventListener('change', function() {
+    state.people.status = this.value; state.people.page = 1; loadPeople();
+  });
+  document.getElementById('people-source-filter').addEventListener('change', function() {
+    state.people.source = this.value; state.people.page = 1; loadPeople();
+  });
+
+  /* ========== Companies ========== */
+  function loadCompanies() {
+    var s = state.companies;
+    showLoading('companies-tbody', 5);
+    return api('/api/dashboard', {
+      view: 'companies', page: s.page, limit: s.limit, search: s.search, sort: s.sort, order: s.order
+    }).then(function(data) {
+      var companies = data.companies || data.data || data.items || [];
+      var total = data.total || data.count || companies.length;
+      if (!companies.length) {
+        showEmpty('companies-tbody', 5, 'No companies found.');
+        renderPagination(document.getElementById('companies-pagination'), 1, 0, s.limit, function() {});
+        return;
+      }
+      var tbody = document.getElementById('companies-tbody');
+      tbody.textContent = '';
+      var frag = document.createDocumentFragment();
+      companies.forEach(function(c) {
+        var tr = document.createElement('tr');
+
+        var tdName = document.createElement('td');
+        var strong = document.createElement('strong');
+        strong.textContent = c.name || c.company_name || '--';
+        tdName.appendChild(strong);
+        tr.appendChild(tdName);
+
+        var tdDomain = document.createElement('td');
+        tdDomain.appendChild(createEl('span', { className: 'mono text-muted' }, c.domain || '--'));
+        tr.appendChild(tdDomain);
+
+        var tdCount = document.createElement('td');
+        tdCount.textContent = formatNumber(c.lead_count);
+        tr.appendChild(tdCount);
+
+        var tdScore = document.createElement('td');
+        tdScore.insertAdjacentHTML('beforeend', scoreBadge(c.avg_score != null ? Math.round(c.avg_score) : null));
+        tr.appendChild(tdScore);
+
+        var tdStatuses = document.createElement('td');
+        if (c.statuses && c.statuses.length) {
+          c.statuses.forEach(function(st) { tdStatuses.insertAdjacentHTML('beforeend', statusBadge(st) + ' '); });
+        } else {
+          tdStatuses.appendChild(createEl('span', { className: 'text-muted' }, '--'));
+        }
+        tr.appendChild(tdStatuses);
+
+        frag.appendChild(tr);
+      });
+      tbody.appendChild(frag);
+      renderPagination(document.getElementById('companies-pagination'), s.page, total, s.limit, function(p) { s.page = p; loadCompanies(); });
+    }).catch(function(err) {
+      showError('companies-tbody', 5, err.message, loadCompanies);
+    });
+  }
+
+  document.getElementById('companies-search').addEventListener('input', debounce(function() {
+    state.companies.search = this.value; state.companies.page = 1; loadCompanies();
+  }, 300));
+
+  document.querySelectorAll('#tab-companies th.sortable').forEach(function(th) {
+    th.addEventListener('click', function() {
+      var sort = th.dataset.sort;
+      if (state.companies.sort === sort) { state.companies.order = state.companies.order === 'desc' ? 'asc' : 'desc'; }
+      else { state.companies.sort = sort; state.companies.order = 'asc'; }
+      state.companies.page = 1;
+      updateSortHeaders('companies-table', state.companies.sort, state.companies.order);
+      loadCompanies();
+    });
+  });
+
+  /* ========== Conversations ========== */
+  function loadConversations() {
+    var s = state.conversations;
+    showLoading('conversations-tbody', 6);
+    return api('/api/dashboard', {
+      view: 'conversations', page: s.page, limit: s.limit, status: s.status, channel: s.channel, direction: s.direction
+    }).then(function(data) {
+      var convos = data.conversations || data.data || data.items || [];
+      var total = data.total || data.count || convos.length;
+      if (!convos.length) {
+        showEmpty('conversations-tbody', 6, 'No conversations match your filters.');
+        renderPagination(document.getElementById('conversations-pagination'), 1, 0, s.limit, function() {});
+        return;
+      }
+      var tbody = document.getElementById('conversations-tbody');
+      tbody.textContent = '';
+      var frag = document.createDocumentFragment();
+      convos.forEach(function(c, i) {
+        var tr = document.createElement('tr');
+        tr.className = 'expandable';
+        tr.setAttribute('data-idx', i);
+        tr.setAttribute('tabindex', '0');
+
+        tr.appendChild(createEl('td', {}, c.lead_name || c.name || '--'));
+        tr.appendChild(createEl('td', {}, c.company || c.company_name || '--'));
+        tr.appendChild(createEl('td', {}, c.channel || '--'));
+
+        var tdStatus = document.createElement('td');
+        tdStatus.insertAdjacentHTML('beforeend', statusBadge(c.status));
+        tr.appendChild(tdStatus);
+
+        var tdMsg = document.createElement('td');
+        tdMsg.appendChild(createEl('span', { className: 'truncate' }, truncate(c.original_message || c.message || '', 80)));
+        tr.appendChild(tdMsg);
+
+        tr.appendChild(createEl('td', { className: 'text-muted' }, relativeTime(c.created_at)));
+
+        /* Expand row */
+        var expandTr = document.createElement('tr');
+        expandTr.className = 'expand-row';
+        expandTr.id = 'expand-conversations-' + i;
+        expandTr.style.display = 'none';
+        var expandTd = document.createElement('td');
+        expandTd.setAttribute('colspan', '6');
+        var expandContent = document.createElement('div');
+        expandContent.className = 'expand-content';
+        buildConvDetail(expandContent, c);
+        expandTd.appendChild(expandContent);
+        expandTr.appendChild(expandTd);
+
+        tr.addEventListener('click', makeToggler(tr, 'conversations', i));
+        tr.addEventListener('keydown', makeKeyHandler(tr, 'conversations', i));
+
+        frag.appendChild(tr);
+        frag.appendChild(expandTr);
+      });
+      tbody.appendChild(frag);
+      renderPagination(document.getElementById('conversations-pagination'), s.page, total, s.limit, function(p) { s.page = p; loadConversations(); });
+    }).catch(function(err) {
+      showError('conversations-tbody', 6, err.message, loadConversations);
+    });
+  }
+
+  function buildConvDetail(container, c) {
+    var grid = createEl('div', { className: 'detail-grid' });
+
+    var infoSec = createEl('div', { className: 'detail-section' });
+    infoSec.appendChild(createEl('h4', {}, 'Conversation Info'));
+    addDetailRow(infoSec, 'Lead', c.lead_name || c.name);
+    addDetailRow(infoSec, 'Company', c.company || c.company_name);
+    addDetailRow(infoSec, 'Channel', c.channel);
+    addDetailRow(infoSec, 'Direction', c.direction);
+    addDetailRow(infoSec, 'Status', c.status);
+    addDetailRow(infoSec, 'Created', c.created_at);
+    grid.appendChild(infoSec);
+
+    var msgSec = createEl('div', { className: 'detail-section' });
+    msgSec.appendChild(createEl('h4', {}, 'Original Message'));
+    var msgBlock = createEl('div', { className: 'msg-block' }, c.original_message || c.message || 'No message');
+    msgSec.appendChild(msgBlock);
+
+    if (c.drafted_response) {
+      msgSec.appendChild(createEl('h4', { style: 'margin-top:16px' }, 'Drafted Response'));
+      msgSec.appendChild(createEl('div', { className: 'msg-block' }, c.drafted_response));
+    }
+    if (c.final_response) {
+      msgSec.appendChild(createEl('h4', { style: 'margin-top:16px' }, 'Final Response'));
+      msgSec.appendChild(createEl('div', { className: 'msg-block' }, c.final_response));
+    }
+    if (c.metadata) {
+      msgSec.appendChild(createEl('h4', { style: 'margin-top:16px' }, 'Metadata'));
+      var pre = document.createElement('pre');
+      pre.textContent = JSON.stringify(c.metadata, null, 2);
+      msgSec.appendChild(pre);
+    }
+    grid.appendChild(msgSec);
+    container.appendChild(grid);
+  }
+
+  ['conv-status-filter', 'conv-channel-filter', 'conv-direction-filter'].forEach(function(id) {
+    var key = id === 'conv-status-filter' ? 'status' : id === 'conv-channel-filter' ? 'channel' : 'direction';
+    document.getElementById(id).addEventListener('change', function() {
+      state.conversations[key] = this.value; state.conversations.page = 1; loadConversations();
+    });
+  });
+
+  /* ========== Webhooks ========== */
+  function loadWebhooks() {
+    var s = state.webhooks;
+    showLoading('webhooks-tbody', 6);
+    return api('/api/dashboard', {
+      view: 'webhooks', page: s.page, limit: s.limit, source: s.source, status: s.status
+    }).then(function(data) {
+      var webhooks = data.data || [];
+      var pag = data.pagination || {};
+      var total = pag.total || 0;
+      if (!webhooks.length) {
+        showEmpty('webhooks-tbody', 6, 'No webhook events yet. Events will appear here as webhooks arrive.');
+        renderPagination(document.getElementById('webhooks-pagination'), 1, 0, s.limit, function() {});
+        return;
+      }
+      var tbody = document.getElementById('webhooks-tbody');
+      tbody.textContent = '';
+      var frag = document.createDocumentFragment();
+      webhooks.forEach(function(w, i) {
+        var tr = document.createElement('tr');
+        tr.className = 'expandable';
+        tr.setAttribute('data-idx', i);
+        tr.setAttribute('tabindex', '0');
+
+        tr.appendChild(createEl('td', { className: 'text-muted mono', style: 'font-size:12px' }, relativeTime(w.received_at)));
+
+        var tdSource = document.createElement('td');
+        var srcColor = { lemlist: 'badge-blue', smartlead: 'badge-green', heyreach: 'badge-yellow', deepline: 'badge-gray' };
+        tdSource.insertAdjacentHTML('beforeend', '<span class="badge ' + (srcColor[w.source] || 'badge-gray') + '">' + esc(w.source) + '</span>');
+        tr.appendChild(tdSource);
+
+        tr.appendChild(createEl('td', { className: 'mono', style: 'font-size:12px' }, w.event_type || '--'));
+
+        var tdStatus = document.createElement('td');
+        var statusColor = { processed: 'badge-green', received: 'badge-blue', processing: 'badge-yellow', skipped: 'badge-gray', error: 'badge-red' };
+        tdStatus.insertAdjacentHTML('beforeend', '<span class="badge ' + (statusColor[w.status] || 'badge-gray') + '">' + esc(w.status) + '</span>');
+        tr.appendChild(tdStatus);
+
+        var leadName = w.lead_first_name ? (w.lead_first_name + ' ' + (w.lead_last_name || '')).trim() : (w.lead_email || '--');
+        tr.appendChild(createEl('td', {}, leadName));
+
+        var preview = w.payload_preview ? truncate(w.payload_preview, 60) : '--';
+        tr.appendChild(createEl('td', { className: 'text-muted mono', style: 'font-size:11px' }, preview));
+
+        /* Expand row with full payload */
+        var expandTr = document.createElement('tr');
+        expandTr.className = 'expand-row';
+        expandTr.id = 'expand-webhooks-' + i;
+        expandTr.style.display = 'none';
+        var expandTd = document.createElement('td');
+        expandTd.setAttribute('colspan', '6');
+        var expandContent = document.createElement('div');
+        expandContent.className = 'expand-content';
+
+        var grid = createEl('div', { className: 'detail-grid' });
+        var infoSec = createEl('div', { className: 'detail-section' });
+        infoSec.appendChild(createEl('h4', {}, 'Webhook Details'));
+        addDetailRow(infoSec, 'ID', w.id);
+        addDetailRow(infoSec, 'Source', w.source);
+        addDetailRow(infoSec, 'Event Type', w.event_type);
+        addDetailRow(infoSec, 'Status', w.status);
+        addDetailRow(infoSec, 'Received', w.received_at);
+        addDetailRow(infoSec, 'Processed', w.processed_at);
+        if (w.error_message) addDetailRow(infoSec, 'Error', w.error_message);
+        if (w.lead_id) addDetailRow(infoSec, 'Lead ID', w.lead_id);
+        if (w.conversation_id) addDetailRow(infoSec, 'Conversation ID', String(w.conversation_id));
+        grid.appendChild(infoSec);
+
+        var payloadSec = createEl('div', { className: 'detail-section' });
+        payloadSec.appendChild(createEl('h4', {}, 'Raw Payload'));
+        var pre = document.createElement('pre');
+        try { pre.textContent = JSON.stringify(JSON.parse(w.payload_preview || '{}'), null, 2); }
+        catch(e) { pre.textContent = w.payload_preview || 'No payload'; }
+        payloadSec.appendChild(pre);
+        grid.appendChild(payloadSec);
+
+        expandContent.appendChild(grid);
+        expandTd.appendChild(expandContent);
+        expandTr.appendChild(expandTd);
+
+        tr.addEventListener('click', makeToggler(tr, 'webhooks', i));
+        tr.addEventListener('keydown', makeKeyHandler(tr, 'webhooks', i));
+
+        frag.appendChild(tr);
+        frag.appendChild(expandTr);
+      });
+      tbody.appendChild(frag);
+      renderPagination(document.getElementById('webhooks-pagination'), s.page, total, s.limit, function(p) { s.page = p; loadWebhooks(); });
+    }).catch(function(err) {
+      showError('webhooks-tbody', 6, err.message, loadWebhooks);
+    });
+  }
+
+  document.getElementById('webhooks-source-filter').addEventListener('change', function() {
+    state.webhooks.source = this.value; state.webhooks.page = 1; loadWebhooks();
+  });
+  document.getElementById('webhooks-status-filter').addEventListener('change', function() {
+    state.webhooks.status = this.value; state.webhooks.page = 1; loadWebhooks();
+  });
+
+  document.getElementById('webhooks-auto-refresh').addEventListener('click', function() {
+    state.webhooksAutoRefresh = !state.webhooksAutoRefresh;
+    this.classList.toggle('on', state.webhooksAutoRefresh);
+    if (state.webhooksAutoRefresh) {
+      state.webhooksAutoRefreshTimer = setInterval(function() { if (state.currentTab === 'webhooks') loadWebhooks(); }, 10000);
+    } else {
+      clearInterval(state.webhooksAutoRefreshTimer);
+      state.webhooksAutoRefreshTimer = null;
+    }
+  });
+
+  /* ========== Events ========== */
+  function loadEvents() {
+    var s = state.events;
+    showLoading('events-tbody', 4);
+    return api('/api/dashboard', {
+      view: 'events', page: s.page, limit: s.limit, action: s.action, lead_id: s.lead_id
+    }).then(function(data) {
+      var events = data.events || data.data || data.items || [];
+      var total = data.total || data.count || events.length;
+      if (!events.length) {
+        showEmpty('events-tbody', 4, 'No events found.');
+        renderPagination(document.getElementById('events-pagination'), 1, 0, s.limit, function() {});
+        return;
+      }
+      var tbody = document.getElementById('events-tbody');
+      tbody.textContent = '';
+      var frag = document.createDocumentFragment();
+      events.forEach(function(e, i) {
+        var tr = document.createElement('tr');
+        tr.className = 'expandable';
+        tr.setAttribute('data-idx', i);
+        tr.setAttribute('tabindex', '0');
+
+        tr.appendChild(createEl('td', { className: 'text-muted' }, relativeTime(e.created_at || e.timestamp)));
+
+        var tdAction = document.createElement('td');
+        tdAction.insertAdjacentHTML('beforeend', '<span class="badge badge-blue">' + esc(e.action || e.type || '--') + '</span>');
+        tr.appendChild(tdAction);
+
+        tr.appendChild(createEl('td', {}, e.lead_name || e.lead_id || '--'));
+
+        var detailStr = typeof e.details === 'object' ? JSON.stringify(e.details) : (e.details || '');
+        var tdDetails = document.createElement('td');
+        tdDetails.appendChild(createEl('span', { className: 'truncate text-muted' }, truncate(detailStr, 80)));
+        tr.appendChild(tdDetails);
+
+        /* Expand row */
+        var expandTr = document.createElement('tr');
+        expandTr.className = 'expand-row';
+        expandTr.id = 'expand-events-' + i;
+        expandTr.style.display = 'none';
+        var expandTd = document.createElement('td');
+        expandTd.setAttribute('colspan', '4');
+        var expandContent = document.createElement('div');
+        expandContent.className = 'expand-content';
+        var pre = document.createElement('pre');
+        pre.textContent = JSON.stringify(e.details || e, null, 2);
+        expandContent.appendChild(pre);
+        expandTd.appendChild(expandContent);
+        expandTr.appendChild(expandTd);
+
+        tr.addEventListener('click', makeToggler(tr, 'events', i));
+        tr.addEventListener('keydown', makeKeyHandler(tr, 'events', i));
+
+        frag.appendChild(tr);
+        frag.appendChild(expandTr);
+      });
+      tbody.appendChild(frag);
+      renderPagination(document.getElementById('events-pagination'), s.page, total, s.limit, function(p) { s.page = p; loadEvents(); });
+    }).catch(function(err) {
+      showError('events-tbody', 4, err.message, loadEvents);
+    });
+  }
+
+  document.getElementById('events-action-filter').addEventListener('change', function() {
+    state.events.action = this.value; state.events.page = 1; loadEvents();
+  });
+  document.getElementById('events-lead-filter').addEventListener('input', debounce(function() {
+    state.events.lead_id = this.value; state.events.page = 1; loadEvents();
+  }, 300));
+
+  document.getElementById('events-auto-refresh').addEventListener('click', function() {
+    state.autoRefresh = !state.autoRefresh;
+    this.classList.toggle('on', state.autoRefresh);
+    if (state.autoRefresh) {
+      state.autoRefreshTimer = setInterval(function() { if (state.currentTab === 'events') loadEvents(); }, 30000);
+    } else {
+      clearInterval(state.autoRefreshTimer);
+      state.autoRefreshTimer = null;
+    }
+  });
+
+  /* ========== Data Quality ========== */
+  function loadQuality() {
+    var container = document.getElementById('quality-cards');
+    container.textContent = '';
+    for (var i = 0; i < 6; i++) {
+      var card = createEl('div', { className: 'stat-card' });
+      card.appendChild(createEl('div', { className: 'stat-value loading' }));
+      container.appendChild(card);
+    }
+
+    return api('/api/dashboard', { view: 'quality' }).then(function(data) {
+      /* API returns: missing_email.{count,samples}, missing_company.{count,samples}, etc. */
+      var issues = [
+        { key: 'missing_email', label: 'Missing Emails', color: 'var(--error)', count: (data.missing_email || {}).count || 0, items: (data.missing_email || {}).samples || [] },
+        { key: 'missing_company', label: 'Missing Companies', color: 'var(--warning)', count: (data.missing_company || {}).count || 0, items: (data.missing_company || {}).samples || [] },
+        { key: 'missing_domain', label: 'Missing Domains', color: 'var(--warning)', count: (data.missing_domain || {}).count || 0, items: (data.missing_domain || {}).samples || [] },
+        { key: 'duplicate_emails', label: 'Duplicates', color: 'var(--error)', count: (data.duplicate_emails || {}).count || 0, items: (data.duplicate_emails || {}).samples || [] },
+        { key: 'stale_conversations', label: 'Stale Drafts', color: 'var(--warning)', count: (data.stale_conversations || {}).count || 0, items: (data.stale_conversations || {}).samples || [] },
+        { key: 'unscored_leads', label: 'Unscored', color: 'var(--text-secondary)', count: (data.unscored_leads || {}).count || 0, items: (data.unscored_leads || {}).samples || [] },
+      ];
+
+      state.quality.data = issues;
+      container.textContent = '';
+
+      issues.forEach(function(issue) {
+        var card = createEl('div', {
+          className: 'stat-card clickable' + (state.quality.selectedIssue === issue.key ? ' selected' : ''),
+          'data-issue': issue.key
+        });
+        card.appendChild(createEl('div', { className: 'stat-label' }, issue.label));
+        var val = createEl('div', { className: 'stat-value', style: 'color:' + issue.color });
+        val.textContent = formatNumber(issue.count);
+        card.appendChild(val);
+
+        card.addEventListener('click', function() {
+          state.quality.selectedIssue = state.quality.selectedIssue === issue.key ? null : issue.key;
+          renderQualityDrilldown();
+          container.querySelectorAll('.stat-card').forEach(function(c) {
+            c.classList.toggle('selected', c.getAttribute('data-issue') === state.quality.selectedIssue);
+          });
+        });
+
+        container.appendChild(card);
+      });
+
+      if (state.quality.selectedIssue) renderQualityDrilldown();
+    }).catch(function(err) {
+      container.textContent = '';
+      var errDiv = createEl('div', { className: 'state-msg', style: 'grid-column:1/-1' });
+      errDiv.appendChild(createEl('p', {}, err.message));
+      var retryBtn = createEl('button', { className: 'btn' }, 'Retry');
+      retryBtn.addEventListener('click', loadQuality);
+      errDiv.appendChild(retryBtn);
+      container.appendChild(errDiv);
+    });
+  }
+
+  function renderQualityDrilldown() {
+    var wrap = document.getElementById('quality-table-wrap');
+    var tbody = document.getElementById('quality-tbody');
+    if (!state.quality.selectedIssue || !state.quality.data) { wrap.style.display = 'none'; return; }
+    var issue = null;
+    for (var i = 0; i < state.quality.data.length; i++) {
+      if (state.quality.data[i].key === state.quality.selectedIssue) { issue = state.quality.data[i]; break; }
+    }
+    if (!issue || !issue.items.length) {
+      wrap.style.display = 'block';
+      showEmpty('quality-tbody', 5, 'No ' + (issue ? issue.label.toLowerCase() : 'items') + ' found.');
+      return;
+    }
+    wrap.style.display = 'block';
+    var severityMap = {
+      missing_emails: 'badge-red', missing_companies: 'badge-yellow', missing_domains: 'badge-yellow',
+      duplicates: 'badge-red', stale_drafts: 'badge-yellow', unscored: 'badge-gray'
+    };
+
+    tbody.textContent = '';
+    var frag = document.createDocumentFragment();
+    issue.items.forEach(function(item) {
+      var tr = document.createElement('tr');
+      tr.appendChild(createEl('td', {}, item.name || item.lead_name || '--'));
+      var tdEmail = document.createElement('td');
+      tdEmail.appendChild(createEl('span', { className: 'mono' }, item.email || '--'));
+      tr.appendChild(tdEmail);
+      tr.appendChild(createEl('td', {}, item.company || item.company_name || '--'));
+      var tdIssue = document.createElement('td');
+      tdIssue.insertAdjacentHTML('beforeend', '<span class="badge ' + (severityMap[issue.key] || 'badge-gray') + '">' + esc(issue.label) + '</span>');
+      tr.appendChild(tdIssue);
+      tr.appendChild(createEl('td', { className: 'text-muted' }, relativeTime(item.submitted_at || item.created_at)));
+      frag.appendChild(tr);
+    });
+    tbody.appendChild(frag);
+  }
+
+  /* ========== Tab Loading Dispatcher ========== */
+  function loadTabData(tab) {
+    switch (tab) {
+      case 'overview': return loadOverview();
+      case 'people': return loadPeople();
+      case 'companies': return loadCompanies();
+      case 'conversations': return loadConversations();
+      case 'webhooks': return loadWebhooks();
+      case 'events': return loadEvents();
+      case 'quality': return loadQuality();
+      default: return Promise.resolve();
+    }
+  }
+
+  /* ========== Init ========== */
+  function init() {
+    var hash = window.location.hash.replace('#', '') || 'overview';
+    var validTabs = ['overview', 'people', 'companies', 'conversations', 'webhooks', 'events', 'quality'];
+    setTab(validTabs.indexOf(hash) !== -1 ? hash : 'overview');
+    document.getElementById('last-refresh').textContent = 'Last refresh: just now';
+  }
+
+  window.addEventListener('hashchange', function() {
+    var hash = window.location.hash.replace('#', '') || 'overview';
+    if (hash !== state.currentTab) setTab(hash);
+  });
+
+  /* Initialize sort arrows */
+  updateSortHeaders('people-table', 'submitted_at', 'desc');
+  updateSortHeaders('companies-table', 'lead_count', 'desc');
+
+  init();
+})();
+</script>
+</body>
+</html>
