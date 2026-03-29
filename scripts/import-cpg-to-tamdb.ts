@@ -113,14 +113,14 @@ function parseCSV(content: string): Record<string, string>[] {
 
 // Map of leads table column -> possible CSV column names (lowercase, underscored)
 const COLUMN_MAP: Record<string, string[]> = {
-  first_name: ["first_name", "firstname", "first"],
+  first_name: ["first_name", "firstname", "first", "founder_name"],
   last_name: ["last_name", "lastname", "last"],
-  email: ["email", "email_address", "e-mail", "work_email"],
-  company_name: ["company_name", "company", "organization", "org_name"],
+  email: ["email", "email_address", "e-mail", "work_email", "founder_email", "finance_leader_email"],
+  company_name: ["company_name", "company", "organization", "org_name", "brand_name"],
   company_domain: ["company_domain", "domain", "website", "company_website"],
-  linkedin_url: ["linkedin_url", "linkedin", "li_url", "linkedin_profile"],
-  title: ["title", "job_title", "role", "position"],
-  external_id: ["external_id", "ext_id", "id"],
+  linkedin_url: ["linkedin_url", "linkedin", "li_url", "linkedin_profile", "founder_linkedin", "finance_linkedin"],
+  title: ["title", "job_title", "role", "position", "founder_title", "finance_leader_title"],
+  external_id: ["external_id", "ext_id", "id", "brand_key"],
 };
 
 function resolveColumn(row: Record<string, string>, candidates: string[]): string | null {

@@ -1,0 +1,9 @@
+tmp/
+data/
+.worktrees/
+scripts/linkedin-waterfall/output/
+scripts/clay-migration/output/
+*.csv
+*.json.bak
+profile-cache.json
+smartlead-all-leads.*
