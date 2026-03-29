@@ -1,0 +1,43 @@
+{
+  "display_information": {
+    "name": "SpringCashBot",
+    "description": "AI-powered LinkedIn reply drafting and lead qualification with Slack approval workflows",
+    "background_color": "#0d6e3f",
+    "long_description": "SpringCashBot drafts AI-generated LinkedIn and email replies, then posts them to Slack for human review. Reps can approve, edit, or reject each reply with a single click. Approved replies are sent after a 60-second undo window. The bot also posts qualified inbound leads with ICP scoring breakdowns."
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "SpringCashBot",
+      "always_online": true
+    }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "chat:write",
+        "chat:write.public",
+        "reactions:read",
+        "channels:history",
+        "groups:history",
+        "im:history",
+        "mpim:history"
+      ]
+    }
+  },
+  "settings": {
+    "interactivity": {
+      "is_enabled": true,
+      "request_url": "https://gtm-signals-scoring-springcash.vercel.app/slack/interactions"
+    },
+    "event_subscriptions": {
+      "request_url": "https://gtm-signals-scoring-springcash.vercel.app/slack/events",
+      "bot_events": [
+        "reaction_added",
+        "reaction_removed"
+      ]
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}
