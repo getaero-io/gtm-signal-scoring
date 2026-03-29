@@ -31,6 +31,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const normalized = normalizePayload(payload, sourcePlatform);
 
+    // Capture webhook event in local store (non-blocking — don't let failures prevent processing)
+    try {
+      const eventType = normalized.event_type || 'unknown';
+      await query(
+        `INSERT INTO webhook_events (source, event_type, raw_payload, status, received_at)
+         VALUES ($1, $2, $3::jsonb, 'received', NOW())`,
+        [sourcePlatform, eventType, JSON.stringify(payload)]
+      );
+    } catch (captureErr) {
+      console.error('[webhooks/ingest] Failed to capture webhook event:', captureErr);
+    }
+
     const source = `cache:local:event_tamdb_write:event:${sourcePlatform}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     const identityPayload: Record<string, string[]> = {};
