@@ -142,6 +142,7 @@ export async function handleLemlistWebhook(
     campaignName: payload.campaignName || "Unknown Campaign",
     originalMessage: null,
     repName,
+    channel: "email",
     template,
     companyContext: config.company_context,
   });
