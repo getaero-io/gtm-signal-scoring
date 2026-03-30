@@ -40,3 +40,13 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env*.local
+
+# large data files
+linkedin-enriched-data.*
+linkedin-enrichment-pipeline.zip
+linkedin-enrichment-pipeline/
+profile-cache.json
+smartlead-all-leads.*
+/data/linkedin-enriched-data.*
+/data/profile-cache.json
+/data/niche-signal-discovery/output/
