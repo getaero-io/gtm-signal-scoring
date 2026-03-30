@@ -189,3 +189,61 @@ export function formatQualifiedLead(data: QualifiedLeadMessage): {
 
   return { text, blocks };
 }
+
+export interface WebsiteVisitMessage {
+  visitorName: string | null;
+  visitorEmail: string | null;
+  companyName: string | null;
+  companyDomain: string | null;
+  pageUrl: string;
+  pageTitle: string | null;
+  referrer: string | null;
+  visitedAt: string;
+  metadata?: Record<string, unknown>;
+  leadId: string | null;
+  qualificationScore: number | null;
+}
+
+export function formatWebsiteVisit(data: WebsiteVisitMessage): {
+  text: string;
+  blocks: unknown[];
+} {
+  const who = data.visitorName || data.visitorEmail || data.companyName || 'Anonymous visitor';
+  const text = `Website Visit: ${escapeSlack(who)} viewed ${escapeSlack(data.pageUrl)}`;
+
+  const fields: { type: string; text: string }[] = [];
+  if (data.visitorName) fields.push({ type: 'mrkdwn', text: `*Visitor:*\n${escapeSlack(data.visitorName)}` });
+  if (data.visitorEmail) fields.push({ type: 'mrkdwn', text: `*Email:*\n${escapeSlack(data.visitorEmail)}` });
+  if (data.companyName) fields.push({ type: 'mrkdwn', text: `*Company:*\n${escapeSlack(data.companyName)}` });
+  if (data.companyDomain) fields.push({ type: 'mrkdwn', text: `*Domain:*\n${escapeSlack(data.companyDomain)}` });
+
+  const blocks: unknown[] = [
+    {
+      type: 'header',
+      text: { type: 'plain_text', text: `Website Visit: ${who}`, emoji: true },
+    },
+  ];
+
+  if (fields.length > 0) {
+    blocks.push({ type: 'section', fields });
+  }
+
+  blocks.push({ type: 'divider' });
+  blocks.push({
+    type: 'section',
+    text: { type: 'mrkdwn', text: `*Page:*\n${escapeSlack(data.pageTitle || data.pageUrl)}` },
+  });
+
+  const contextParts: string[] = [];
+  if (data.referrer) contextParts.push(`Referrer: ${escapeSlack(data.referrer)}`);
+  if (data.qualificationScore != null) contextParts.push(`Score: ${data.qualificationScore}`);
+  if (data.leadId) contextParts.push(`Lead: ${data.leadId}`);
+  contextParts.push(new Date(data.visitedAt).toLocaleString('en-US', { timeZone: 'America/New_York' }));
+
+  blocks.push({
+    type: 'context',
+    elements: [{ type: 'mrkdwn', text: contextParts.join(' | ') }],
+  });
+
+  return { text, blocks };
+}
