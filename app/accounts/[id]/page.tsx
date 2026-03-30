@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getAccountById, getAccountSignals } from '@/lib/data/companies';
+
+export const dynamic = 'force-dynamic';
 import { ScoreDisplay } from '@/components/scoring/ScoreDisplay';
 import ScoreBreakdownDisplay from '@/components/scoring/ScoreBreakdown';
 import { TrendChart } from '@/components/scoring/TrendChart';

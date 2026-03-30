@@ -33,8 +33,8 @@ export async function GET(req: NextRequest) {
     const orderMap: Record<string, string> = {
       score_desc: 'COALESCE(l.qualification_score, l.atlas_score, 0) DESC',
       score_asc: 'COALESCE(l.qualification_score, l.atlas_score, 0) ASC',
-      newest: 'l.created_at DESC',
-      oldest: 'l.created_at ASC',
+      newest: 'COALESCE(l.created_at, l.submitted_at) DESC',
+      oldest: 'COALESCE(l.created_at, l.submitted_at) ASC',
     };
     const orderBy = orderMap[sort] || orderMap.score_desc;
 

@@ -3,6 +3,8 @@ import { SourceTable } from './components/source-table';
 import { TierDistribution } from './components/tier-distribution';
 import { LeadTable } from './components/lead-table';
 
+export const dynamic = 'force-dynamic';
+
 export default async function SignalsPage() {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 
