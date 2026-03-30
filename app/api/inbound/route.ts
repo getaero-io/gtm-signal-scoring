@@ -64,6 +64,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Update account_scores for this domain (fire-and-forget, cron will recompute fully)
+    if (domain) {
+      try {
+        const { writeQuery } = await import("@/lib/db-write");
+        await writeQuery(
+          `INSERT INTO inbound.account_scores (domain, company_name, contact_count, updated_at)
+           VALUES ($1, $2, 1, NOW())
+           ON CONFLICT (domain) DO UPDATE SET
+             contact_count = (SELECT COUNT(*) FROM inbound.leads WHERE company_domain = $1),
+             updated_at = NOW()`,
+          [domain, body.company || domain]
+        );
+      } catch {}
+    }
+
     const routingConfig = await getActiveRoutingConfig();
     if (routingConfig) {
       try {
