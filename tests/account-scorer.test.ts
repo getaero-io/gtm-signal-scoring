@@ -79,7 +79,7 @@ describe("computeAccountScore", () => {
       best_velocity_score: 0,
       any_positive_intent: false,
       any_meeting_requested: false,
-      active_channels_count: 0,
+      max_contact_channels: 0,
     });
   });
 

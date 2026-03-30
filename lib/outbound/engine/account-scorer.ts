@@ -29,7 +29,7 @@ export interface AccountScoreResult {
   best_velocity_score: number;
   any_positive_intent: boolean;
   any_meeting_requested: boolean;
-  active_channels_count: number;
+  max_contact_channels: number;
 }
 
 export function computeAccountTier(score: number): "T1" | "T2" | "T3" {
@@ -64,7 +64,7 @@ export function computeAccountScore(
       best_velocity_score: 0,
       any_positive_intent: false,
       any_meeting_requested: false,
-      active_channels_count: 0,
+      max_contact_channels: 0,
     };
   }
 
@@ -97,7 +97,7 @@ export function computeAccountScore(
   // 2. Engagement component (0-100)
   let engagementComponent = 0;
   engagementComponent += Math.min(totalTouchpoints * 5, 30);
-  engagementComponent += bestVelocity * 0.2;
+  engagementComponent += Math.min(bestVelocity, 100) * 0.2;
   if (anyPositiveIntent) engagementComponent += 20;
   if (anyMeetingRequested) engagementComponent += 20;
   if (hasActiveConv) engagementComponent += 10;
@@ -106,6 +106,8 @@ export function computeAccountScore(
   // 3. Company fit (0-100)
   let companyComponent = 0;
   if (companySignals.is_cpg) companyComponent += 40;
+  // Spring Cash targets emerging CPG brands with 0-4 retailers.
+  // 5+ retailers means well-distributed — not a fit signal.
   if (companySignals.retailer_count > 0 && companySignals.retailer_count <= 4)
     companyComponent += 30;
   if (companySignals.employee_count > 0 && companySignals.employee_count < 50)
@@ -143,6 +145,6 @@ export function computeAccountScore(
     best_velocity_score: bestVelocity,
     any_positive_intent: anyPositiveIntent,
     any_meeting_requested: anyMeetingRequested,
-    active_channels_count: maxChannels,
+    max_contact_channels: maxChannels,
   };
 }
