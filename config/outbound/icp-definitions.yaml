@@ -157,6 +157,125 @@ spring_cash:
           value: true
           points: 40
 
+    # --- Engagement signals (computed from webhook_events + routing_log) ---
+    - category: "engagement"
+      weight: 25
+      rules:
+        # Email replies (strongest buying signal)
+        - signal: "engagement.email_replies"
+          operator: "gte"
+          value: 1
+          points: 80
+        - signal: "engagement.email_replies"
+          operator: "gte"
+          value: 3
+          points: 100
+        # LinkedIn replies
+        - signal: "engagement.linkedin_replies"
+          operator: "gte"
+          value: 1
+          points: 70
+        # Email opens (interest indicator)
+        - signal: "engagement.email_opens"
+          operator: "gte"
+          value: 3
+          points: 30
+        - signal: "engagement.email_opens"
+          operator: "gte"
+          value: 6
+          points: 50
+        # Link clicks (high intent)
+        - signal: "engagement.link_clicks"
+          operator: "gte"
+          value: 1
+          points: 60
+        - signal: "engagement.link_clicks"
+          operator: "gte"
+          value: 3
+          points: 80
+        # Website visits
+        - signal: "engagement.website_visits"
+          operator: "gte"
+          value: 1
+          points: 40
+        - signal: "engagement.website_visits"
+          operator: "gte"
+          value: 3
+          points: 70
+        # Slack approval (rep approved outreach)
+        - signal: "engagement.slack_approvals"
+          operator: "gte"
+          value: 1
+          points: 30
+
+    - category: "frequency"
+      weight: 15
+      rules:
+        # Total touchpoints across all channels
+        - signal: "engagement.total_touchpoints"
+          operator: "gte"
+          value: 3
+          points: 40
+        - signal: "engagement.total_touchpoints"
+          operator: "gte"
+          value: 6
+          points: 70
+        - signal: "engagement.total_touchpoints"
+          operator: "gte"
+          value: 10
+          points: 100
+        # Multi-channel engagement (email + linkedin + website)
+        - signal: "engagement.channel_count"
+          operator: "gte"
+          value: 2
+          points: 60
+        - signal: "engagement.channel_count"
+          operator: "gte"
+          value: 3
+          points: 100
+        # Recent activity (within last 7 days)
+        - signal: "engagement.active_last_7d"
+          operator: "equals"
+          value: true
+          points: 50
+        # Recency of last engagement (days ago)
+        - signal: "engagement.days_since_last"
+          operator: "lte"
+          value: 3
+          points: 40
+        - signal: "engagement.days_since_last"
+          operator: "lte"
+          value: 7
+          points: 25
+
+    - category: "heat"
+      weight: 10
+      rules:
+        # Velocity: engagement accelerating recently
+        - signal: "engagement.velocity_score"
+          operator: "gte"
+          value: 50
+          points: 60
+        - signal: "engagement.velocity_score"
+          operator: "gte"
+          value: 80
+          points: 100
+        # Positive intent from reply analysis
+        - signal: "engagement.positive_intent"
+          operator: "equals"
+          value: true
+          points: 80
+        # Meeting/demo requested
+        - signal: "engagement.meeting_requested"
+          operator: "equals"
+          value: true
+          points: 100
+        # Currently in active conversation
+        - signal: "engagement.has_active_conversation"
+          operator: "equals"
+          value: true
+          points: 50
+
   thresholds:
     qualified: 60
     nurture: 30
