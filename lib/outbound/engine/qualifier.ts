@@ -5,6 +5,7 @@ import { scoreLead } from "./scorer";
 import { analyzeWebsite } from "../llm";
 import { enrichFromVectorCached } from "@/lib/enrichment/vector";
 import { upsertLearning } from "../db/learnings";
+import { computeEngagementSignals } from "./engagement";
 
 async function queryOne<T>(sql: string, params?: any[]): Promise<T | null> {
   const rows = await query<T>(sql, params);
@@ -280,6 +281,14 @@ export async function qualifyLead(
     } catch (err) {
       console.warn('[qualifier] Vector enrichment failed (non-fatal):', err);
     }
+  }
+
+  // 5c. Engagement signal enrichment (non-fatal)
+  try {
+    const engagement = await computeEngagementSignals(String(leadId));
+    enrichedLead.engagement = engagement;
+  } catch (err) {
+    console.warn('[qualifier] Engagement enrichment failed (non-fatal):', err);
   }
 
   // 6. Score against the ICP referenced by the rule
