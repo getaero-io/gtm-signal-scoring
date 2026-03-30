@@ -27,9 +27,12 @@ export async function GET() {
         COUNT(*) as count
       FROM inbound.leads GROUP BY 1 ORDER BY 1`),
 
-      writeQuery<any>(`SELECT id, full_name, email, company_name, source, status,
-        qualification_score, atlas_score, created_at
-      FROM inbound.leads ORDER BY created_at DESC LIMIT 10`),
+      writeQuery<any>(`SELECT id, full_name, email,
+        COALESCE(company_name, company) as company_name, source, status,
+        COALESCE(qualification_score, atlas_score, 0) as qualification_score,
+        atlas_score,
+        COALESCE(created_at, submitted_at) as created_at
+      FROM inbound.leads ORDER BY COALESCE(created_at, submitted_at) DESC LIMIT 10`),
     ]);
 
     return NextResponse.json({

@@ -1,6 +1,8 @@
 import AccountsTable from '@/components/accounts/AccountsTable';
 import { getAccounts } from '@/lib/data/companies';
 
+export const dynamic = 'force-dynamic';
+
 export default async function HomePage() {
   const { accounts, total } = await getAccounts({});
 

@@ -10,14 +10,14 @@ export async function GET(req: NextRequest) {
       date: string; count: string; avg_score: string;
       tier1: string; tier2: string; qualified: string;
     }>(`SELECT
-      DATE(created_at) as date,
+      DATE(COALESCE(created_at, submitted_at)) as date,
       COUNT(*) as count,
       ROUND(AVG(COALESCE(qualification_score, atlas_score, 0))) as avg_score,
       COUNT(*) FILTER (WHERE COALESCE(qualification_score, atlas_score, 0) >= 70) as tier1,
       COUNT(*) FILTER (WHERE COALESCE(qualification_score, atlas_score, 0) >= 50) as tier2,
       COUNT(*) FILTER (WHERE status = 'qualified') as qualified
     FROM inbound.leads
-    WHERE created_at >= NOW() - make_interval(days => $1)
+    WHERE COALESCE(created_at, submitted_at) >= NOW() - make_interval(days => $1)
     GROUP BY 1
     ORDER BY 1`, [days]);
 
