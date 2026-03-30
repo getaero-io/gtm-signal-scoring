@@ -3,7 +3,8 @@
   "crons": [
     { "path": "/api/cron/send-approved", "schedule": "* * * * *" },
     { "path": "/api/cron/bump-stale-drafts", "schedule": "0 8 * * *" },
-    { "path": "/api/events/process", "schedule": "0 9 * * *" }
+    { "path": "/api/events/process", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/qualify-and-score", "schedule": "0 * * * *" }
   ],
   "rewrites": [
     { "source": "/health", "destination": "/api/health" },
