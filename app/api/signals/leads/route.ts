@@ -50,29 +50,54 @@ export async function GET(req: NextRequest) {
 
     const dedup = params.get('dedup') === 'person';
 
-    const [leads, countResult] = await Promise.all([
-      writeQuery<any>(
-        `SELECT l.*, qr.score as icp_score, qr.passed as icp_passed, qr.breakdown as icp_breakdown,
-         qr.flags as icp_flags, qr.icp_ref,
-         p.primary_name as person_name, p.primary_email as person_email, p.primary_linkedin_url as person_linkedin,
-         cr.primary_domain as company_resolved_domain, cr.primary_name as company_resolved_name,
-         (SELECT COUNT(*) FROM inbound.leads l2 WHERE l2.person_id = l.person_id AND l.person_id IS NOT NULL) as related_leads_count
-         FROM inbound.leads l
-         LEFT JOIN LATERAL (
-           SELECT * FROM inbound.qualification_results WHERE lead_id = l.id ORDER BY created_at DESC LIMIT 1
-         ) qr ON true
-         LEFT JOIN inbound.persons p ON p.id = l.person_id
-         LEFT JOIN inbound.companies_resolved cr ON cr.id = l.company_id
-         ${where}
-         ORDER BY ${orderBy}
-         LIMIT $${idx} OFFSET $${idx + 1}`,
-        [...values, limit, offset]
-      ),
-      writeQuery<{ total: string }>(
-        `SELECT COUNT(*) as total FROM inbound.leads l ${where}`,
-        values
-      ),
-    ]);
+    // Try full query with identity + qualification JOINs; fall back to simple query if tables don't exist
+    let leads: any[];
+    let countResult: { total: string }[];
+    try {
+      [leads, countResult] = await Promise.all([
+        writeQuery<any>(
+          `SELECT l.*, qr.score as icp_score, qr.passed as icp_passed, qr.breakdown as icp_breakdown,
+           qr.flags as icp_flags, qr.icp_ref,
+           p.primary_name as person_name, p.primary_email as person_email, p.primary_linkedin_url as person_linkedin,
+           cr.primary_domain as company_resolved_domain, cr.primary_name as company_resolved_name,
+           (SELECT COUNT(*) FROM inbound.leads l2 WHERE l2.person_id = l.person_id AND l.person_id IS NOT NULL) as related_leads_count
+           FROM inbound.leads l
+           LEFT JOIN LATERAL (
+             SELECT * FROM inbound.qualification_results WHERE lead_id = l.id ORDER BY created_at DESC LIMIT 1
+           ) qr ON true
+           LEFT JOIN inbound.persons p ON p.id = l.person_id
+           LEFT JOIN inbound.companies_resolved cr ON cr.id = l.company_id
+           ${where}
+           ORDER BY ${orderBy}
+           LIMIT $${idx} OFFSET $${idx + 1}`,
+          [...values, limit, offset]
+        ),
+        writeQuery<{ total: string }>(
+          `SELECT COUNT(*) as total FROM inbound.leads l ${where}`,
+          values
+        ),
+      ]);
+    } catch (joinErr) {
+      // Fallback: query without identity/qualification JOINs (tables may not exist on this DB)
+      console.warn('[signals/leads] Full query failed, using fallback:', (joinErr as Error).message);
+      [leads, countResult] = await Promise.all([
+        writeQuery<any>(
+          `SELECT l.*,
+           l.qualification_score as icp_score,
+           COALESCE(l.company_name, l.company) as company_resolved_name,
+           l.company_domain as company_resolved_domain
+           FROM inbound.leads l
+           ${where}
+           ORDER BY ${orderBy}
+           LIMIT $${idx} OFFSET $${idx + 1}`,
+          [...values, limit, offset]
+        ),
+        writeQuery<{ total: string }>(
+          `SELECT COUNT(*) as total FROM inbound.leads l ${where}`,
+          values
+        ),
+      ]);
+    }
 
     // If dedup=person, collapse leads by person_id (keep highest-scored lead per person)
     let result = leads;
