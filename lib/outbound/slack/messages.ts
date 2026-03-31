@@ -27,6 +27,8 @@ export interface QualifiedLeadMessage {
   fitSummary: string;
   flags: string[];
   leadId: number;
+  relatedLeadsCount?: number;
+  relatedSources?: string[];
 }
 
 export function formatOutboundReply(data: OutboundReplyMessage): {
@@ -181,7 +183,13 @@ export function formatQualifiedLead(data: QualifiedLeadMessage): {
       elements: [
         {
           type: "mrkdwn",
-          text: `${data.flags.length > 0 ? data.flags.map(f => escapeSlack(f)).join(" | ") + " | " : ""}Lead ID: ${data.leadId}`,
+          text: [
+            data.flags.length > 0 ? data.flags.map(f => escapeSlack(f)).join(" | ") : null,
+            `Lead ID: ${data.leadId}`,
+            data.relatedLeadsCount && data.relatedLeadsCount > 1
+              ? `${data.relatedLeadsCount} leads from this person${data.relatedSources?.length ? ` (${data.relatedSources.join(", ")})` : ""}`
+              : null,
+          ].filter(Boolean).join(" | "),
         },
       ],
     },

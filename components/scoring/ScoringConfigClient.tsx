@@ -1,172 +1,416 @@
 'use client';
 
 import { useState } from 'react';
-import { Copy, Check, FileJson, Sparkles } from 'lucide-react';
+import { Save, Check, AlertTriangle } from 'lucide-react';
 
 interface Props {
-  config: Record<string, unknown>;
+  yamlContent: string;
 }
 
-function buildClaudePrompt(config: Record<string, unknown>): string {
-  const s = (config as any).scoring;
-  const p = (config as any).p0Detection;
-
-  return `I need to update the GTM Signal Atlas scoring configuration for this Next.js project.
-
-The scoring config is at: lib/scoring/scoring-config.json
-
-## Current scoring rules
-
-Atlas score is calculated as:
-  base (${s.baseScore}) + emailQuality + contactIdentity + founderMatch + dataCoverage
-
-Each signal:
-- Valid business email: +${s.emailQuality.validBusinessEmailPoints} pts each (max ${s.emailQuality.maxPoints})
-- Valid free email (Gmail/etc): +${s.emailQuality.validFreeEmailPoints} pts each (max ${s.emailQuality.maxPoints})
-- Named contact identified: +${s.contactIdentity.namedContactPoints} pts each (max ${s.contactIdentity.maxPoints})
-- Founder/decision-maker (P0): +${s.founderMatch.founderMatchPoints} pts each (max ${s.founderMatch.maxPoints})
-- Active MX record found: +${s.dataCoverage.mxFoundPoints} pts
-
-## P0 (decision-maker) detection
-
-C-level titles — auto-qualify as P0:
-  ${p.cLevelTitles.join(', ')}
-
-VP/Head-of titles — qualify if department matches revenueDepartments:
-  ${p.vpTitles.join(', ')}
-
-Director titles — qualify if department matches revenueDepartments:
-  ${p.directorTitles.join(', ')}
-
-Revenue departments (used with VP/Director filter):
-  ${p.revenueDepartments.join(', ')}
-
-## How to make changes
-
-Edit lib/scoring/scoring-config.json — that file is the single source of truth for all weights and detection rules. The TypeScript engine reads from it at startup. No other files need to change.
-
-Examples of what I might ask:
-- "Double the points for valid business emails to 80"
-- "Add 'managing director' and 'gm' to the C-level titles list"
-- "Add 'partnerships' to the revenue departments"
-- "Lower the MX record bonus to 2 points"
-- "Add a cap so emailQuality can't exceed 60"
-
-Please make the following change: [DESCRIBE YOUR CHANGE HERE]`;
+interface Rule {
+  signal: string;
+  operator: string;
+  value: any;
+  points: number;
 }
 
-export default function ScoringConfigClient({ config }: Props) {
-  const [copied, setCopied] = useState(false);
-  const [jsonCopied, setJsonCopied] = useState(false);
-  const jsonString = JSON.stringify(config, null, 2);
-  const prompt = buildClaudePrompt(config);
+interface Category {
+  category: string;
+  weight: number;
+  rules: Rule[];
+}
 
-  function copyPrompt() {
-    navigator.clipboard.writeText(prompt).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+interface AntiPenalty {
+  signal: string;
+  operator: string;
+  value: any;
+  penalty: number;
+  flag: string;
+}
+
+interface ParsedConfig {
+  name: string;
+  description: string;
+  categories: Category[];
+  thresholds: { qualified: number; nurture: number };
+  antifit: AntiPenalty[];
+}
+
+function parseYaml(raw: string): ParsedConfig | null {
+  try {
+    // Simple YAML parser for this specific structure
+    const lines = raw.split('\n');
+    let name = '';
+    let description = '';
+    const categories: Category[] = [];
+    const antifit: AntiPenalty[] = [];
+    let thresholds = { qualified: 60, nurture: 30 };
+
+    // Extract name
+    const nameLine = lines.find(l => l.trim().startsWith('name:'));
+    if (nameLine) name = nameLine.split('name:')[1].trim().replace(/^"|"$/g, '');
+
+    // Extract description
+    const descIdx = lines.findIndex(l => l.trim().startsWith('description:'));
+    if (descIdx >= 0) {
+      const parts: string[] = [];
+      for (let i = descIdx + 1; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.match(/^\s{4}\S/) && !line.trim().startsWith('-')) {
+          parts.push(line.trim());
+        } else {
+          break;
+        }
+      }
+      description = parts.join(' ');
+      if (!description) {
+        // inline description
+        description = lines[descIdx].split('description:')[1]?.trim().replace(/^>/, '').trim() || '';
+      }
+    }
+
+    // Parse scoring categories
+    let inScoring = false;
+    let inAntifit = false;
+    let currentCat: Category | null = null;
+    let currentAnti: Partial<AntiPenalty> | null = null;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmed = line.trim();
+
+      if (trimmed === 'scoring:') { inScoring = true; inAntifit = false; continue; }
+      if (trimmed === 'thresholds:') { inScoring = false; inAntifit = false; continue; }
+      if (trimmed === 'anti_fit:') { inScoring = false; inAntifit = true; continue; }
+
+      // Parse thresholds
+      if (trimmed.startsWith('qualified:') && !inScoring && !inAntifit) {
+        thresholds.qualified = parseInt(trimmed.split(':')[1].trim());
+      }
+      if (trimmed.startsWith('nurture:') && !inScoring && !inAntifit) {
+        thresholds.nurture = parseInt(trimmed.split(':')[1].trim());
+      }
+
+      if (inScoring) {
+        if (trimmed.startsWith('- category:')) {
+          if (currentCat) categories.push(currentCat);
+          currentCat = {
+            category: trimmed.split('- category:')[1].trim().replace(/^"|"$/g, ''),
+            weight: 0,
+            rules: [],
+          };
+        } else if (trimmed.startsWith('weight:') && currentCat) {
+          currentCat.weight = parseInt(trimmed.split(':')[1].trim());
+        } else if (trimmed.startsWith('- signal:') && currentCat) {
+          const rule: Rule = {
+            signal: trimmed.split('- signal:')[1].trim().replace(/^"|"$/g, ''),
+            operator: '',
+            value: '',
+            points: 0,
+          };
+          // Look ahead for operator, value, points
+          for (let j = i + 1; j < Math.min(i + 15, lines.length); j++) {
+            const next = lines[j].trim();
+            if (next.startsWith('- signal:') || next.startsWith('- category:') || next === 'thresholds:' || next === 'anti_fit:') break;
+            if (next.startsWith('operator:')) rule.operator = next.split(':')[1].trim().replace(/^"|"$/g, '');
+            if (next.startsWith('points:')) rule.points = parseInt(next.split(':')[1].trim());
+            if (next.startsWith('value:')) {
+              const val = next.split(':').slice(1).join(':').trim();
+              if (val === 'true') rule.value = true;
+              else if (val === 'false') rule.value = false;
+              else if (val === '' || val === undefined) {
+                // Array value - collect subsequent lines
+                const arr: string[] = [];
+                for (let k = j + 1; k < lines.length; k++) {
+                  const arrLine = lines[k].trim();
+                  if (arrLine.startsWith('- "') || arrLine.startsWith("- '") || arrLine.startsWith('- ')) {
+                    if (arrLine.startsWith('- signal:') || arrLine.startsWith('- category:')) break;
+                    arr.push(arrLine.replace(/^- /, '').replace(/^"|"$/g, '').replace(/^'|'$/g, ''));
+                  } else {
+                    break;
+                  }
+                }
+                if (arr.length > 0) rule.value = arr;
+              }
+              else if (!isNaN(Number(val))) rule.value = Number(val);
+              else rule.value = val.replace(/^"|"$/g, '');
+            }
+          }
+          currentCat.rules.push(rule);
+        }
+      }
+
+      if (inAntifit) {
+        if (trimmed.startsWith('- signal:')) {
+          if (currentAnti && currentAnti.signal) antifit.push(currentAnti as AntiPenalty);
+          currentAnti = {
+            signal: trimmed.split('- signal:')[1].trim().replace(/^"|"$/g, ''),
+            operator: '',
+            value: '',
+            penalty: 0,
+            flag: '',
+          };
+        } else if (currentAnti) {
+          if (trimmed.startsWith('operator:')) currentAnti.operator = trimmed.split(':')[1].trim().replace(/^"|"$/g, '');
+          if (trimmed.startsWith('penalty:')) currentAnti.penalty = parseInt(trimmed.split(':')[1].trim());
+          if (trimmed.startsWith('flag:')) currentAnti.flag = trimmed.split(':')[1].trim().replace(/^"|"$/g, '');
+          if (trimmed.startsWith('value:')) {
+            const val = trimmed.split(':').slice(1).join(':').trim();
+            if (val === 'true') currentAnti.value = true;
+            else if (val === 'false') currentAnti.value = false;
+            else if (val === '') {
+              // Array
+              const arr: string[] = [];
+              for (let k = i + 1; k < lines.length; k++) {
+                const arrLine = lines[k].trim();
+                if (arrLine.startsWith('- "') || arrLine.startsWith("- '")) {
+                  arr.push(arrLine.replace(/^- /, '').replace(/^"|"$/g, '').replace(/^'|'$/g, ''));
+                } else if (arrLine.startsWith('- ') && !arrLine.startsWith('- signal:')) {
+                  arr.push(arrLine.replace(/^- /, '').replace(/^"|"$/g, ''));
+                } else {
+                  break;
+                }
+              }
+              if (arr.length > 0) currentAnti.value = arr;
+            }
+            else if (!isNaN(Number(val))) currentAnti.value = Number(val);
+            else currentAnti.value = val.replace(/^"|"$/g, '');
+          }
+        }
+      }
+    }
+
+    if (currentCat) categories.push(currentCat);
+    if (currentAnti && currentAnti.signal) antifit.push(currentAnti as AntiPenalty);
+
+    return { name, description, categories, thresholds, antifit };
+  } catch {
+    return null;
+  }
+}
+
+const CATEGORY_COLORS: Record<string, string> = {
+  emergence_youth: 'border-l-blue-500',
+  first_po_readiness: 'border-l-emerald-500',
+  reachability: 'border-l-yellow-500',
+  retailer_fit: 'border-l-purple-500',
+  engagement: 'border-l-orange-500',
+  frequency: 'border-l-pink-500',
+  heat: 'border-l-red-500',
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  emergence_youth: 'Emergence / Youth',
+  first_po_readiness: 'First PO Readiness',
+  reachability: 'Reachability',
+  retailer_fit: 'Retailer Fit',
+  engagement: 'Engagement',
+  frequency: 'Frequency',
+  heat: 'Heat',
+};
+
+function formatValue(val: any): string {
+  if (Array.isArray(val)) return val.join(', ');
+  if (typeof val === 'boolean') return val ? 'true' : 'false';
+  return String(val);
+}
+
+export default function ScoringConfigClient({ yamlContent }: Props) {
+  const [editing, setEditing] = useState(false);
+  const [content, setContent] = useState(yamlContent);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+
+  const parsed = parseYaml(yamlContent);
+
+  async function handleSave() {
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch('/api/config/write', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          file: 'icp-definitions.yaml',
+          content,
+          message: 'config: update ICP definitions from dashboard',
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      setSaved(true);
+      setEditing(false);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function copyJson() {
-    navigator.clipboard.writeText(jsonString).then(() => {
-      setJsonCopied(true);
-      setTimeout(() => setJsonCopied(false), 2000);
-    });
+  if (!parsed) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <p className="text-sm text-gray-500 mb-4">Could not parse YAML. Showing raw content:</p>
+        <pre className="text-xs text-gray-700 font-mono bg-gray-50 p-4 rounded-lg overflow-x-auto whitespace-pre-wrap">
+          {yamlContent}
+        </pre>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-5">
-      {/* Claude Code prompt card */}
-      <div className="bg-gray-950 rounded-xl border border-gray-800 overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
-          <div className="flex items-center gap-2">
-            <Sparkles size={14} className="text-purple-400" />
-            <span className="text-xs font-semibold text-gray-300">Claude Code prompt — edit this config</span>
-          </div>
-          <button
-            onClick={copyPrompt}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white transition-colors"
-          >
-            {copied ? <Check size={12} /> : <Copy size={12} />}
-            {copied ? 'Copied!' : 'Copy prompt'}
-          </button>
-        </div>
-        <pre className="p-4 text-xs text-gray-300 leading-relaxed overflow-x-auto whitespace-pre-wrap font-mono max-h-64 overflow-y-auto">
-          {prompt}
-        </pre>
-      </div>
-
-      {/* JSON config */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-          <div className="flex items-center gap-2">
-            <FileJson size={14} className="text-emerald-500" />
-            <span className="text-xs font-semibold text-gray-700">lib/scoring/scoring-config.json</span>
-          </div>
-          <button
-            onClick={copyJson}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-600 transition-colors"
-          >
-            {jsonCopied ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
-            {jsonCopied ? 'Copied!' : 'Copy JSON'}
-          </button>
-        </div>
-        <pre className="p-4 text-xs text-gray-700 leading-relaxed overflow-x-auto font-mono bg-gray-50">
-          {jsonString}
-        </pre>
-      </div>
-
-      {/* Quick reference */}
+    <div className="space-y-6">
+      {/* Thresholds bar */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <h3 className="text-xs font-semibold text-gray-700 mb-3">Score weights</h3>
-          <div className="space-y-2 text-xs">
-            {[
-              { label: 'Base score', value: (config as any).scoring.baseScore, color: 'text-gray-500' },
-              { label: 'Valid business email', value: `+${(config as any).scoring.emailQuality.validBusinessEmailPoints} pts (max ${(config as any).scoring.emailQuality.maxPoints})`, color: 'text-emerald-600' },
-              { label: 'Valid free email', value: `+${(config as any).scoring.emailQuality.validFreeEmailPoints} pts (max ${(config as any).scoring.emailQuality.maxPoints})`, color: 'text-yellow-600' },
-              { label: 'Named contact', value: `+${(config as any).scoring.contactIdentity.namedContactPoints} pts (max ${(config as any).scoring.contactIdentity.maxPoints})`, color: 'text-blue-600' },
-              { label: 'Founder / P0', value: `+${(config as any).scoring.founderMatch.founderMatchPoints} pts (max ${(config as any).scoring.founderMatch.maxPoints})`, color: 'text-purple-600' },
-              { label: 'MX record', value: `+${(config as any).scoring.dataCoverage.mxFoundPoints} pts`, color: 'text-gray-600' },
-            ].map(row => (
-              <div key={row.label} className="flex justify-between">
-                <span className="text-gray-500">{row.label}</span>
-                <span className={`font-semibold ${row.color}`}>{row.value}</span>
-              </div>
-            ))}
-          </div>
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-emerald-700">{parsed.thresholds.qualified}</div>
+          <div className="text-xs text-emerald-600 mt-0.5">Qualified Threshold</div>
         </div>
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-yellow-700">{parsed.thresholds.nurture}</div>
+          <div className="text-xs text-yellow-600 mt-0.5">Nurture Threshold</div>
+        </div>
+      </div>
 
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <h3 className="text-xs font-semibold text-gray-700 mb-3">P0 detection</h3>
-          <div className="space-y-2 text-xs">
-            <div>
-              <span className="text-gray-400 block mb-1">C-Level (auto-qualify)</span>
-              <div className="flex flex-wrap gap-1">
-                {(config as any).p0Detection.cLevelTitles.map((t: string) => (
-                  <span key={t} className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">{t}</span>
-                ))}
-              </div>
+      {/* Scoring categories */}
+      <div className="space-y-4">
+        {parsed.categories.map(cat => (
+          <div key={cat.category} className={`bg-white rounded-xl border border-gray-200 overflow-hidden border-l-4 ${CATEGORY_COLORS[cat.category] || 'border-l-gray-400'}`}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+              <h3 className="text-sm font-semibold text-gray-800">
+                {CATEGORY_LABELS[cat.category] || cat.category}
+              </h3>
+              <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                Weight: {cat.weight}
+              </span>
             </div>
-            <div>
-              <span className="text-gray-400 block mb-1">VP / Head of + revenue dept</span>
-              <div className="flex flex-wrap gap-1">
-                {(config as any).p0Detection.vpTitles.map((t: string) => (
-                  <span key={t} className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">{t}</span>
-                ))}
-              </div>
-            </div>
-            <div>
-              <span className="text-gray-400 block mb-1">Revenue depts</span>
-              <div className="flex flex-wrap gap-1">
-                {(config as any).p0Detection.revenueDepartments.map((t: string) => (
-                  <span key={t} className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-xs">{t}</span>
-                ))}
-              </div>
+            <div className="px-5 py-3">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-gray-400">
+                    <th className="text-left py-1 pr-4 font-medium">Signal</th>
+                    <th className="text-left py-1 pr-4 font-medium">Operator</th>
+                    <th className="text-left py-1 pr-4 font-medium">Value</th>
+                    <th className="text-right py-1 font-medium">Points</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {cat.rules.map((rule, i) => (
+                    <tr key={i} className="text-gray-700">
+                      <td className="py-1.5 pr-4 font-mono text-gray-600">{rule.signal}</td>
+                      <td className="py-1.5 pr-4">
+                        <span className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">{rule.operator}</span>
+                      </td>
+                      <td className="py-1.5 pr-4 max-w-[200px] truncate" title={formatValue(rule.value)}>
+                        {formatValue(rule.value)}
+                      </td>
+                      <td className="py-1.5 text-right font-semibold text-emerald-600">+{rule.points}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
+        ))}
+      </div>
+
+      {/* Anti-fit penalties */}
+      {parsed.antifit.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden border-l-4 border-l-red-400">
+          <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100">
+            <AlertTriangle size={14} className="text-red-500" />
+            <h3 className="text-sm font-semibold text-gray-800">Anti-Fit Penalties</h3>
+          </div>
+          <div className="px-5 py-3">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-gray-400">
+                  <th className="text-left py-1 pr-4 font-medium">Signal</th>
+                  <th className="text-left py-1 pr-4 font-medium">Operator</th>
+                  <th className="text-left py-1 pr-4 font-medium">Value</th>
+                  <th className="text-right py-1 pr-4 font-medium">Penalty</th>
+                  <th className="text-left py-1 font-medium">Flag</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {parsed.antifit.map((af, i) => (
+                  <tr key={i} className="text-gray-700">
+                    <td className="py-1.5 pr-4 font-mono text-gray-600">{af.signal}</td>
+                    <td className="py-1.5 pr-4">
+                      <span className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">{af.operator}</span>
+                    </td>
+                    <td className="py-1.5 pr-4 max-w-[200px] truncate" title={formatValue(af.value)}>
+                      {formatValue(af.value)}
+                    </td>
+                    <td className="py-1.5 pr-4 text-right font-semibold text-red-600">{af.penalty}</td>
+                    <td className="py-1.5 text-gray-500 font-mono">{af.flag}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
+      )}
+
+      {/* Edit YAML */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+          <span className="text-sm font-semibold text-gray-700">
+            config/spring-cash/icp-definitions.yaml
+          </span>
+          <div className="flex items-center gap-2">
+            {saved && (
+              <span className="flex items-center gap-1 text-xs text-emerald-600">
+                <Check size={12} /> Saved
+              </span>
+            )}
+            {error && (
+              <span className="text-xs text-red-600">{error}</span>
+            )}
+            {editing ? (
+              <>
+                <button
+                  onClick={() => { setEditing(false); setContent(yamlContent); setError(''); }}
+                  className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50"
+                >
+                  <Save size={12} />
+                  {saving ? 'Saving...' : 'Save'}
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setEditing(true)}
+                className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600"
+              >
+                Edit YAML
+              </button>
+            )}
+          </div>
+        </div>
+        {editing ? (
+          <textarea
+            value={content}
+            onChange={e => setContent(e.target.value)}
+            className="w-full p-4 text-xs text-gray-700 font-mono bg-gray-50 focus:outline-none resize-y"
+            rows={30}
+            spellCheck={false}
+          />
+        ) : (
+          <pre className="p-4 text-xs text-gray-700 font-mono bg-gray-50 overflow-x-auto whitespace-pre-wrap max-h-96 overflow-y-auto">
+            {yamlContent}
+          </pre>
+        )}
       </div>
     </div>
   );

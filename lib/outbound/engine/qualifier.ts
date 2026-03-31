@@ -291,6 +291,34 @@ export async function qualifyLead(
     console.warn('[qualifier] Engagement enrichment failed (non-fatal):', err);
   }
 
+  // 5d. Deal stage enrichment — check if this lead's company has an Attio deal
+  try {
+    // First try matching by lead_id directly
+    let dealRow = await queryOne<{ stage: string }>(
+      `SELECT raw_payload::jsonb->>'stage' as stage
+       FROM inbound.webhook_events
+       WHERE event_type = 'deal' AND lead_id = $1
+       ORDER BY created_at DESC LIMIT 1`,
+      [leadId]
+    );
+    // Fall back to company-name fuzzy match from deal events
+    if (!dealRow && lead.company_name) {
+      dealRow = await queryOne<{ stage: string }>(
+        `SELECT raw_payload::jsonb->>'stage' as stage
+         FROM inbound.webhook_events
+         WHERE event_type = 'deal'
+           AND raw_payload::jsonb->>'deal_name' ILIKE '%' || $1 || '%'
+         ORDER BY created_at DESC LIMIT 1`,
+        [String(lead.company_name).substring(0, 30)]
+      );
+    }
+    if (dealRow?.stage) {
+      enrichedLead.deal_stage = dealRow.stage;
+    }
+  } catch (err) {
+    console.warn('[qualifier] Deal stage enrichment failed (non-fatal):', err);
+  }
+
   // 6. Score against the ICP referenced by the rule
   const icp = config.icp_definitions[matchedRule.icp_ref];
   if (!icp) {

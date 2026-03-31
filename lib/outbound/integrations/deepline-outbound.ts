@@ -156,17 +156,51 @@ export async function sendReply(
 
 /**
  * Get leads that have replied in a campaign.
+ *
+ * Uses list_campaign_leads (returns structured JSON) instead of
+ * export_campaign_leads (returns CSV text).
+ * Paginates through all replied leads and flattens the nested lead object.
  */
 export async function getLeadReplies(
   provider: OutboundProvider,
   campaignId: string
 ): Promise<unknown[]> {
-  const result = await deeplineCall<unknown[]>(
-    provider,
-    op(provider, "export_campaign_leads"),
-    { campaign_id: campaignId, status: "replied" }
-  );
-  return Array.isArray(result) ? result : [];
+  const all: unknown[] = [];
+  let offset = 0;
+  const limit = 50;
+
+  while (true) {
+    const result = await deeplineCall<{ data?: unknown[] }>(
+      provider,
+      op(provider, "list_campaign_leads"),
+      { campaign_id: campaignId, status: "REPLIED", limit, offset }
+    );
+    const items = Array.isArray(result?.data) ? result.data : Array.isArray(result) ? result : [];
+    if (items.length === 0) break;
+
+    for (const item of items as Record<string, unknown>[]) {
+      const lead = (item.lead ?? {}) as Record<string, unknown>;
+      // Flatten the nested structure so consumers see top-level fields
+      all.push({
+        ...lead,
+        id: lead.id,
+        lead_id: lead.id,
+        smartlead_lead_id: lead.id,
+        email: lead.email,
+        first_name: lead.first_name,
+        last_name: lead.last_name,
+        company_name: lead.company_name,
+        companyName: lead.company_name,
+        status: (item as Record<string, unknown>).status,
+        campaign_lead_map_id: (item as Record<string, unknown>).campaign_lead_map_id,
+      });
+    }
+
+    if (items.length < limit) break;
+    offset += limit;
+  }
+
+  return all;
 }
 
 // ---------------------------------------------------------------------------

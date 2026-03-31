@@ -120,6 +120,20 @@ async function routeQualified(
   const rule = findRule(config.routing.rules, "qualified_to_rep");
   const channel = resolveChannel(rule, config);
 
+  // 3b. Look up related leads for this person (for Slack context)
+  const relatedLeads = await query<{ source: string }>(
+    `SELECT DISTINCT source FROM inbound.leads
+     WHERE person_id = (SELECT person_id FROM inbound.leads WHERE id = $1)
+       AND person_id IS NOT NULL`,
+    [lead.id]
+  ).catch(() => [] as any[]);
+  const relatedCount = await queryOne<{ count: string }>(
+    `SELECT COUNT(*) as count FROM inbound.leads
+     WHERE person_id = (SELECT person_id FROM inbound.leads WHERE id = $1)
+       AND person_id IS NOT NULL`,
+    [lead.id]
+  );
+
   // 4. Format and send Slack message
   const { text, blocks } = formatQualifiedLead({
     leadName: [lead.first_name, lead.last_name].filter(Boolean).join(" ") || "Unknown",
@@ -131,6 +145,8 @@ async function routeQualified(
     fitSummary: qualResult.llm_reasoning || "No summary available",
     flags: qualResult.flags ?? [],
     leadId: lead.id,
+    relatedLeadsCount: parseInt(relatedCount?.count || '0', 10),
+    relatedSources: relatedLeads.map(r => r.source).filter(Boolean),
   });
 
   const slackResult = await postMessage({ channel, text, blocks });
@@ -164,9 +180,12 @@ async function routeQualified(
     }).catch((err) => console.warn('[router] Attio company upsert failed:', err));
   }
 
-  // 6. Upsert contact in HubSpot (non-blocking)
+  // 6. Upsert contact in HubSpot (only if tenant has hubspot config)
   let hubspotId: string | null = null;
-  if (lead.email) {
+  let hubspotDealId: string | null = null;
+  const hubspotConfig = config.routing.hubspot;
+
+  if (hubspotConfig && lead.email) {
     const hsResult = await upsertHubSpotContact({
       email: lead.email,
       firstName: lead.first_name || undefined,
@@ -178,37 +197,51 @@ async function routeQualified(
       source: 'gtm-signal-scoring',
     });
     hubspotId = hsResult?.contactId ?? null;
-  }
 
-  // 6b. Create HubSpot deal associated with contact + company
-  let hubspotDealId: string | null = null;
-  if (hubspotId) {
-    const companyId = lead.company_domain
-      ? await findOrCreateHubSpotCompany(lead.company_domain, lead.company_name || undefined)
-      : null;
+    // 6b. Create HubSpot deal — but check for existing deal on this person first
+    if (hubspotId) {
+      const existingDeal = await queryOne<{ hubspot_deal_id: string }>(
+        `SELECT metadata->>'hubspot_deal_id' as hubspot_deal_id
+         FROM inbound.leads
+         WHERE person_id = (SELECT person_id FROM inbound.leads WHERE id = $1)
+           AND person_id IS NOT NULL
+           AND metadata->>'hubspot_deal_id' IS NOT NULL
+           AND id != $1
+         LIMIT 1`,
+        [lead.id]
+      );
 
-    const hubspotConfig = config.routing.hubspot;
-    const ownerEmail = rep.email;
-    const ownerId = ownerEmail ? await findHubSpotOwnerByEmail(ownerEmail) : null;
+      if (existingDeal?.hubspot_deal_id) {
+        hubspotDealId = existingDeal.hubspot_deal_id;
+        console.log(`[router] Reusing existing HubSpot deal ${hubspotDealId} for person (lead ${lead.id})`);
+      } else {
+        const companyId = lead.company_domain
+          ? await findOrCreateHubSpotCompany(lead.company_domain, lead.company_name || undefined)
+          : null;
 
-    hubspotDealId = await createHubSpotDeal({
-      contactId: hubspotId,
-      companyId: companyId ?? undefined,
-      dealName: `${lead.company_name || lead.first_name || 'Lead'} — Inbound Qualified`,
-      pipeline: hubspotConfig?.pipeline_id || 'default',
-      stage: hubspotConfig?.stages?.qualified || 'qualifiedtobuy',
-      ownerId: ownerId ?? undefined,
-      properties: {
-        gtm_qualification_score: String(qualResult.score),
-        gtm_lead_source: lead.source || 'unknown',
-      },
-    });
+        const ownerEmail = rep.email;
+        const ownerId = ownerEmail ? await findHubSpotOwnerByEmail(ownerEmail) : null;
 
-    if (hubspotDealId) {
-      await writeQuery(
-        `UPDATE inbound.leads SET metadata = jsonb_set(COALESCE(metadata, '{}'), '{hubspot_deal_id}', $1::jsonb) WHERE id = $2`,
-        [JSON.stringify(hubspotDealId), lead.id]
-      ).catch(() => {});
+        hubspotDealId = await createHubSpotDeal({
+          contactId: hubspotId,
+          companyId: companyId ?? undefined,
+          dealName: `${lead.company_name || lead.first_name || 'Lead'} — Inbound Qualified`,
+          pipeline: hubspotConfig.pipeline_id || 'default',
+          stage: hubspotConfig.stages?.qualified || 'qualifiedtobuy',
+          ownerId: ownerId ?? undefined,
+          properties: {
+            gtm_qualification_score: String(qualResult.score),
+            gtm_lead_source: lead.source || 'unknown',
+          },
+        });
+      }
+
+      if (hubspotDealId) {
+        await writeQuery(
+          `UPDATE inbound.leads SET metadata = jsonb_set(COALESCE(metadata, '{}'), '{hubspot_deal_id}', $1::jsonb) WHERE id = $2`,
+          [JSON.stringify(hubspotDealId), lead.id]
+        ).catch(() => {});
+      }
     }
   }
 
@@ -289,9 +322,12 @@ async function routeNurture(
     }).catch((err) => console.warn('[router] Attio company upsert failed:', err));
   }
 
-  // 4. Upsert contact in HubSpot (non-blocking)
+  // 4. Upsert contact in HubSpot (only if tenant has hubspot config)
   let hubspotId: string | null = null;
-  if (lead.email) {
+  let hubspotDealId: string | null = null;
+  const hubspotConfig = config.routing.hubspot;
+
+  if (hubspotConfig && lead.email) {
     const hsResult = await upsertHubSpotContact({
       email: lead.email,
       firstName: lead.first_name || undefined,
@@ -303,34 +339,47 @@ async function routeNurture(
       source: 'gtm-signal-scoring',
     });
     hubspotId = hsResult?.contactId ?? null;
-  }
 
-  // 4b. Create HubSpot deal for nurture leads
-  let hubspotDealId: string | null = null;
-  if (hubspotId) {
-    const companyId = lead.company_domain
-      ? await findOrCreateHubSpotCompany(lead.company_domain, lead.company_name || undefined)
-      : null;
+    // 4b. Create HubSpot deal for nurture leads — guard against duplicates
+    if (hubspotId) {
+      const existingDeal = await queryOne<{ hubspot_deal_id: string }>(
+        `SELECT metadata->>'hubspot_deal_id' as hubspot_deal_id
+         FROM inbound.leads
+         WHERE person_id = (SELECT person_id FROM inbound.leads WHERE id = $1)
+           AND person_id IS NOT NULL
+           AND metadata->>'hubspot_deal_id' IS NOT NULL
+           AND id != $1
+         LIMIT 1`,
+        [lead.id]
+      );
 
-    const hubspotConfig = config.routing.hubspot;
+      if (existingDeal?.hubspot_deal_id) {
+        hubspotDealId = existingDeal.hubspot_deal_id;
+        console.log(`[router] Reusing existing HubSpot deal ${hubspotDealId} for nurture person (lead ${lead.id})`);
+      } else {
+        const companyId = lead.company_domain
+          ? await findOrCreateHubSpotCompany(lead.company_domain, lead.company_name || undefined)
+          : null;
 
-    hubspotDealId = await createHubSpotDeal({
-      contactId: hubspotId,
-      companyId: companyId ?? undefined,
-      dealName: `${lead.company_name || lead.first_name || 'Lead'} — Nurture`,
-      pipeline: hubspotConfig?.pipeline_id || 'default',
-      stage: hubspotConfig?.stages?.nurture || 'appointmentscheduled',
-      properties: {
-        gtm_qualification_score: String(qualResult.score),
-        gtm_lead_source: lead.source || 'unknown',
-      },
-    });
+        hubspotDealId = await createHubSpotDeal({
+          contactId: hubspotId,
+          companyId: companyId ?? undefined,
+          dealName: `${lead.company_name || lead.first_name || 'Lead'} — Nurture`,
+          pipeline: hubspotConfig.pipeline_id || 'default',
+          stage: hubspotConfig.stages?.nurture || 'appointmentscheduled',
+          properties: {
+            gtm_qualification_score: String(qualResult.score),
+            gtm_lead_source: lead.source || 'unknown',
+          },
+        });
+      }
 
-    if (hubspotDealId) {
-      await writeQuery(
-        `UPDATE inbound.leads SET metadata = jsonb_set(COALESCE(metadata, '{}'), '{hubspot_deal_id}', $1::jsonb) WHERE id = $2`,
-        [JSON.stringify(hubspotDealId), lead.id]
-      ).catch(() => {});
+      if (hubspotDealId) {
+        await writeQuery(
+          `UPDATE inbound.leads SET metadata = jsonb_set(COALESCE(metadata, '{}'), '{hubspot_deal_id}', $1::jsonb) WHERE id = $2`,
+          [JSON.stringify(hubspotDealId), lead.id]
+        ).catch(() => {});
+      }
     }
   }
 

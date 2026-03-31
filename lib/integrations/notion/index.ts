@@ -54,17 +54,17 @@ export async function pushAccountToNotion(account: Account): Promise<{ success: 
           Name: {
             title: [{ text: { content: account.name } }],
           },
-          'Atlas Score': {
-            number: account.atlas_score,
+          'ICP Score': {
+            number: account.icp_score ?? 0,
           },
           Domain: {
             url: account.domain ? `https://${account.domain}` : null,
           },
-          'P0 Contacts': {
-            number: account.p0_penetration.current,
+          'Account Score': {
+            number: account.account_score ?? 0,
           },
-          'Tech Stack Size': {
-            number: account.tech_stack.length,
+          Tier: {
+            select: account.sc_tier ? { name: account.sc_tier } : null,
           },
           'Last Scored': {
             date: { start: new Date().toISOString() },

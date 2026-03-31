@@ -78,8 +78,8 @@ export function verifySlackSignature(
   signature: string
 ): boolean {
   // Reject requests older than 5 minutes
-  const now = Math.floor(Date.now() / 1000);
-  if (Math.abs(now - parseInt(timestamp, 10)) > 300) return false;
+  const ts = parseInt(timestamp, 10);
+  if (!ts || Math.abs(Math.floor(Date.now() / 1000) - ts) > 300) return false;
 
   const baseString = `v0:${timestamp}:${body}`;
   const hmac = crypto
@@ -87,6 +87,9 @@ export function verifySlackSignature(
     .update(baseString)
     .digest("hex");
   const expected = `v0=${hmac}`;
+
+  // timingSafeEqual throws if buffer lengths differ
+  if (expected.length !== signature.length) return false;
 
   return crypto.timingSafeEqual(
     Buffer.from(expected, "utf8"),

@@ -59,9 +59,9 @@ export async function syncAccountToHubSpot(account: Account): Promise<{ success:
     });
 
     const properties = {
-      gtm_atlas_score: String(account.atlas_score),
-      gtm_p0_penetration: `${account.p0_penetration.current}/${account.p0_penetration.total}`,
-      gtm_tech_count: String(account.tech_stack.length),
+      gtm_icp_score: String(account.icp_score ?? 0),
+      gtm_account_score: String(account.account_score ?? 0),
+      gtm_sc_tier: account.sc_tier || '',
       gtm_last_scored: new Date().toISOString(),
     };
 

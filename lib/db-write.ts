@@ -26,4 +26,32 @@ export async function writeQuery<T = Record<string, any>>(
   }
 }
 
+export type TxClient = {
+  query: <T = Record<string, any>>(text: string, params?: any[]) => Promise<T[]>;
+};
+
+/** Run callback inside a BEGIN/COMMIT transaction. Rolls back on error. */
+export async function writeTransaction<T>(
+  fn: (client: TxClient) => Promise<T>
+): Promise<T> {
+  const client = await writePool.connect();
+  try {
+    await client.query("BEGIN");
+    const txClient: TxClient = {
+      query: async <R = Record<string, any>>(text: string, params?: any[]) => {
+        const result = await client.query<R & Record<string, any>>(text, params);
+        return result.rows as R[];
+      },
+    };
+    const result = await fn(txClient);
+    await client.query("COMMIT");
+    return result;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 export default writePool;

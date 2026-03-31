@@ -57,6 +57,8 @@ async function deeplineAttio<T = unknown>(
   }
 
   const json = (await res.json()) as DeeplineResponse<T>;
+  // Deepline wraps Attio responses: result.data.data for list/query operations
+  // but result.data for assert/update operations. Return result as-is and let callers handle.
   return json.result;
 }
 

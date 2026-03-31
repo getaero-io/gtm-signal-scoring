@@ -1,29 +1,31 @@
-import { ScoreBreakdown, TrendPoint } from './scoring';
-
 export interface Account {
   id: string;
   name: string;
-  domain?: string;
-  industry?: string;
-  logo_url?: string;
-
-  // Scoring (computed)
-  atlas_score: number;
-  score_breakdown: ScoreBreakdown;
-  trend_30d: TrendPoint[];
-
-  // Derived metrics
-  p0_penetration: {
-    current: number;
-    total: number;
-  };
-  tech_stack: TechStackItem[];
-  key_contacts: Contact[];
-
-  // Metadata
+  domain: string;
+  founder_name: string | null;
+  founder_email: string | null;
+  founder_title: string | null;
+  email_status: string | null;
+  retailer_count: number;
+  retailers_list: string | null;
+  sc_tier: string | null;
+  icp_score: number | null;
+  account_score: number | null;
+  account_tier: string | null;
+  contact_count: number;
   created_at: string;
   updated_at: string;
 }
+
+// Legacy types kept for backward compatibility with scoring engine & integrations
+export type SeniorityLevel =
+  | 'C-Level'
+  | 'VP'
+  | 'Director'
+  | 'Manager'
+  | 'Senior'
+  | 'Entry-Level'
+  | 'Individual Contributor';
 
 export interface Contact {
   id: string;
@@ -35,15 +37,6 @@ export interface Contact {
   is_p0: boolean;
   linkedin_url?: string;
 }
-
-export type SeniorityLevel =
-  | 'C-Level'
-  | 'VP'
-  | 'Director'
-  | 'Manager'
-  | 'Senior'
-  | 'Entry-Level'
-  | 'Individual Contributor';
 
 export interface TechStackItem {
   id: string;

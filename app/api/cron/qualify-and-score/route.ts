@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
     try {
       const result = await qualifyLead(lead.id);
       result.qualified ? results.qualified++ : results.nurtured++;
-      await routeLead(lead.id).catch(() => {});
+      await routeLead(lead.id as unknown as number).catch(() => {});
     } catch {
       results.errors++;
     }

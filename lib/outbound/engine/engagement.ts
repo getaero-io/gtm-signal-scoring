@@ -19,12 +19,25 @@ export interface EngagementSignals {
 
 /**
  * Compute engagement signals for a lead by querying webhook_events,
- * routing_log, and learnings tables. Returns a flat object that gets
- * merged into the lead as `engagement.*` fields for ICP scoring.
+ * routing_log, and learnings tables. When the lead has a person_id,
+ * aggregates signals across ALL leads linked to that person entity.
  */
 export async function computeEngagementSignals(
   leadId: string
 ): Promise<EngagementSignals> {
+  // Resolve person_id to aggregate across all of a person's leads
+  const personRow = await query<{ person_id: string | null }>(
+    `SELECT person_id FROM inbound.leads WHERE id = $1`,
+    [leadId]
+  ).catch(() => [{ person_id: null }]);
+  const personId = personRow[0]?.person_id;
+
+  // Use person-level aggregation when possible, fall back to single lead
+  const leadFilter = personId
+    ? `lead_id IN (SELECT id FROM inbound.leads WHERE person_id = $1)`
+    : `lead_id = $1`;
+  const filterParam = personId || leadId;
+
   // Query engagement events from webhook_events
   const events = await query<{
     event_type: string;
@@ -34,9 +47,9 @@ export async function computeEngagementSignals(
   }>(
     `SELECT event_type, source, created_at, raw_payload::text
      FROM inbound.webhook_events
-     WHERE lead_id = $1
+     WHERE ${leadFilter}
      ORDER BY created_at DESC`,
-    [leadId]
+    [filterParam]
   ).catch(() => [] as any[]);
 
   // Query routing log for actions
@@ -47,12 +60,17 @@ export async function computeEngagementSignals(
   }>(
     `SELECT action, details::text, created_at
      FROM inbound.routing_log
-     WHERE lead_id = $1
+     WHERE ${leadFilter}
      ORDER BY created_at DESC`,
-    [leadId]
+    [filterParam]
   ).catch(() => [] as any[]);
 
-  // Query learnings for intent signals
+  // Query learnings for intent signals (check both lead-level and person-level)
+  const entityFilter = personId
+    ? `(entity_type = 'lead' AND entity_id IN (SELECT id::text FROM inbound.leads WHERE person_id = $1))
+       OR (entity_type = 'person' AND entity_id = $1)`
+    : `entity_type = 'lead' AND entity_id = $1`;
+
   const learnings = await query<{
     category: string;
     key: string;
@@ -61,8 +79,8 @@ export async function computeEngagementSignals(
   }>(
     `SELECT category, key, value, metadata::text
      FROM inbound.learnings
-     WHERE entity_type = 'lead' AND entity_id = $1`,
-    [leadId]
+     WHERE ${entityFilter}`,
+    [filterParam]
   ).catch(() => [] as any[]);
 
   // Count events by type

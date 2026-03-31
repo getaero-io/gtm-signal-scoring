@@ -11,9 +11,14 @@ spring_cash:
     working capital to fulfill their first purchase orders at major retailers.
     Spring Cash has raised $345M to provide working capital for these brands.
 
+  # Scoring weights derived from historical deal analysis (25 won deals, 30 lost):
+  # - 100% of won deal contacts are founder/CEO/owner → title_match is critical
+  # - All won companies are CPG food/beverage brands → is_cpg is gating
+  # - Outbound TAM (cpg_import, smartlead) has 0 deals yet → reachability matters
+  # - Data completeness (email, linkedin, domain) strongly predicts actionability
   scoring:
     - category: "emergence_youth"
-      weight: 30
+      weight: 25
       rules:
         - signal: "domain_age_years"
           operator: "lt"
@@ -54,7 +59,7 @@ spring_cash:
           points: 15
 
     - category: "first_po_readiness"
-      weight: 30
+      weight: 35
       rules:
         - signal: "retailer_count"
           operator: "equals"
@@ -90,7 +95,7 @@ spring_cash:
           points: 20
 
     - category: "reachability"
-      weight: 20
+      weight: 25
       rules:
         - signal: "email_valid"
           operator: "equals"
@@ -111,10 +116,14 @@ spring_cash:
         - signal: "title"
           operator: "regex"
           value: "(?i)(founder|ceo|owner|co-founder|president)"
+          points: 50
+        - signal: "title"
+          operator: "regex"
+          value: "(?i)(founder|co-founder)"
           points: 25
 
     - category: "retailer_fit"
-      weight: 20
+      weight: 15
       rules:
         - signal: "retailers_list"
           operator: "contains"
@@ -157,9 +166,61 @@ spring_cash:
           value: true
           points: 40
 
+    # --- Deal progression (from Attio deal stage webhooks) ---
+    - category: "deal_progression"
+      weight: 20
+      rules:
+        - signal: "deal_stage"
+          operator: "equals"
+          value: "Wired $"
+          points: 100
+        - signal: "deal_stage"
+          operator: "equals"
+          value: "Contract Signed"
+          points: 95
+        - signal: "deal_stage"
+          operator: "equals"
+          value: "Contract Sent"
+          points: 90
+        - signal: "deal_stage"
+          operator: "in"
+          value:
+            - "Late Stage"
+            - "Underwritten"
+            - "Awaiting Underwriting"
+          points: 80
+        - signal: "deal_stage"
+          operator: "equals"
+          value: "Opportunity"
+          points: 70
+        - signal: "deal_stage"
+          operator: "equals"
+          value: "Meeting Set"
+          points: 60
+        - signal: "deal_stage"
+          operator: "equals"
+          value: "Qualified Lead"
+          points: 50
+        - signal: "deal_stage"
+          operator: "in"
+          value:
+            - "Lead"
+            - "Tej / Cyrus Lead"
+            - "Called Then Texted"
+          points: 30
+        # Anti-progression signals
+        - signal: "deal_stage"
+          operator: "in"
+          value:
+            - "Rejected"
+            - "Lost Deal"
+            - "Failed Underwriting"
+            - "We Got Ghosted"
+          points: 0
+
     # --- Engagement signals (computed from webhook_events + routing_log) ---
     - category: "engagement"
-      weight: 25
+      weight: 20
       rules:
         # Email replies (strongest buying signal)
         - signal: "engagement.email_replies"
@@ -209,7 +270,7 @@ spring_cash:
           points: 30
 
     - category: "frequency"
-      weight: 15
+      weight: 10
       rules:
         # Total touchpoints across all channels
         - signal: "engagement.total_touchpoints"
@@ -301,19 +362,28 @@ spring_cash:
       value: 500
       penalty: -35
       flag: "large_company_not_emerging"
-    - signal: "industry"
-      operator: "not_in"
-      value:
-        - "Consumer Goods"
-        - "Food & Beverage"
-        - "Health & Wellness"
-        - "Beauty & Personal Care"
-        - "Pet Products"
-        - "Household Products"
+    - signal: "linkedin_employee_count"
+      operator: "gte"
+      value: 1000
       penalty: -50
-      flag: "non_cpg_industry"
+      flag: "enterprise_company_not_target"
+    # Note: industry not_in check removed — industry is null for most leads
+    # and not_in treats null as "not in the list", causing false positives.
+    # Rely on is_cpg from website analysis instead.
     - signal: "is_cpg"
       operator: "equals"
       value: false
       penalty: -60
       flag: "not_a_cpg_brand"
+    - signal: "deal_stage"
+      operator: "in"
+      value:
+        - "Rejected"
+        - "Failed Underwriting"
+      penalty: -40
+      flag: "previously_rejected_or_failed"
+    - signal: "deal_stage"
+      operator: "equals"
+      value: "We Got Ghosted"
+      penalty: -25
+      flag: "previously_ghosted"

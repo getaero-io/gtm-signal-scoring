@@ -18,6 +18,7 @@ import type {
   Persona,
   AppConfig,
 } from "../../lib/outbound/config/types.js";
+import { resolveIdentity } from "../../lib/identity/resolve.js";
 
 // ---------------------------------------------------------------------------
 // OpenAI client (lazy singleton)
@@ -468,9 +469,10 @@ export async function handleLemlistWebhook(
     return { ok: true };
   }
 
-  const replyText = payload.replyText;
+  // LinkedIn replies use "text" field, email replies use "replyText"
+  const replyText = payload.replyText || (payload.text as string | undefined);
   if (!replyText) {
-    console.warn("[lemlist/webhook] No replyText in payload");
+    console.warn("[lemlist/webhook] No replyText/text in payload for", payload.type);
     return { ok: true };
   }
 
@@ -529,6 +531,18 @@ export async function handleLemlistWebhook(
       ]
     );
     leadId = result.rows[0].id;
+  }
+
+  try {
+    await resolveIdentity({
+      leadId,
+      email: payload.email,
+      firstName: payload.firstName,
+      lastName: payload.lastName,
+      companyName: payload.companyName,
+    });
+  } catch (err) {
+    console.warn("[lemlist/webhook] resolveIdentity failed:", err);
   }
 
   // 2. Match response template

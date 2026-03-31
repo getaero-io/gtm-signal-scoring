@@ -18,6 +18,7 @@ import { postMessage } from "../lib/outbound/slack/client";
 import { formatOutboundReply } from "../lib/outbound/slack/messages";
 import { getLeadReplies } from "../lib/outbound/integrations/deepline-outbound";
 import type { ResponseTemplate } from "../lib/outbound/config/types";
+import { resolveIdentity } from "../lib/identity/resolve";
 
 async function queryOne<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T | null> {
   const rows = await query<T>(sql, params);
@@ -182,6 +183,19 @@ export const outboundReplyCheck = schedules.task({
             logger.error("Lead upsert returned no ID", { email });
             errors++;
             continue;
+          }
+
+          try {
+            await resolveIdentity({
+              leadId: String(leadId),
+              email,
+              firstName,
+              lastName,
+              companyName,
+              smartleadId: smartleadLeadId,
+            });
+          } catch (err) {
+            console.warn("[outbound-replies] resolveIdentity failed:", err);
           }
 
           // Fetch full lead record for context building

@@ -10,14 +10,6 @@ function makeContact(overrides: Partial<ContactInput> = {}): ContactInput {
   return {
     icp_score: 50,
     qualified: false,
-    engagement: {
-      total_touchpoints: 0,
-      velocity_score: 0,
-      positive_intent: false,
-      meeting_requested: false,
-      has_active_conversation: false,
-      channel_count: 1,
-    },
     ...overrides,
     engagement: {
       total_touchpoints: 0,
