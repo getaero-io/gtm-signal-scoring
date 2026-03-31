@@ -21,8 +21,8 @@ async function main() {
       },
       body: JSON.stringify({
         provider: "attio",
-        operation: "attio_list_records",
-        payload: { object: "people", limit: 50, ...(cursor ? { offset: cursor } : {}) },
+        operation: "attio_query_records",
+        payload: { object: "people", limit: 50, offset: cursor ? parseInt(cursor) : 0 },
       }),
     });
 
@@ -32,8 +32,9 @@ async function main() {
     }
 
     const json = (await res.json()) as any;
-    const records = json.result?.data || [];
-    cursor = json.result?.next_cursor || null;
+    const records = json.result?.data?.data || json.result?.data || [];
+    const currentOffset: number = cursor ? parseInt(cursor) : 0;
+    cursor = records.length >= 50 ? String(currentOffset + 50) : null;
     hasMore = !!cursor && records.length > 0;
 
     for (const record of records) {
