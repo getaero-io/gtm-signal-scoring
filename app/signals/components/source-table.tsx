@@ -30,7 +30,7 @@ export function SourceTable({ sources }: { sources: Source[] }) {
               <tr key={s.source} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
                 <td className="px-4 py-2 font-mono text-zinc-300">{s.source}</td>
                 <td className="px-4 py-2 text-right font-mono">{Number(s.count).toLocaleString()}</td>
-                <td className="px-4 py-2 text-right font-mono">{s.avg_score}</td>
+                <td className="px-4 py-2 text-right font-mono">{s.avg_score ? Number(s.avg_score).toFixed(1) : '—'}</td>
                 <td className="px-4 py-2 text-right font-mono text-emerald-400">{Number(s.tier1).toLocaleString()}</td>
                 <td className="px-4 py-2 text-right font-mono text-amber-400">{Number(s.tier2).toLocaleString()}</td>
               </tr>

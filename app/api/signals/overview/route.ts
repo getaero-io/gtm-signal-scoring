@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { writeQuery } from '@/lib/db-write';
+import { tenantFilter } from '@/lib/data/tenant-filter';
 
 export async function GET() {
   try {
+    const tf = tenantFilter(1);
     const [totals, tiers, recentLeads] = await Promise.all([
       writeQuery<{
         total: string; avg_score: string; median_score: string;
@@ -15,7 +17,7 @@ export async function GET() {
         COUNT(*) FILTER (WHERE status = 'nurture') as nurture,
         COUNT(*) FILTER (WHERE COALESCE(qualification_score, atlas_score, 0) >= 70) as tier1,
         COUNT(*) FILTER (WHERE COALESCE(qualification_score, atlas_score, 0) BETWEEN 50 AND 69) as tier2
-      FROM inbound.leads`),
+      FROM inbound.leads WHERE 1=1 ${tf.clause}`, tf.params),
 
       writeQuery<{ tier: string; count: string }>(`SELECT
         CASE
@@ -25,14 +27,14 @@ export async function GET() {
           ELSE 'Tier 4'
         END as tier,
         COUNT(*) as count
-      FROM inbound.leads GROUP BY 1 ORDER BY 1`),
+      FROM inbound.leads WHERE 1=1 ${tf.clause} GROUP BY 1 ORDER BY 1`, tf.params),
 
       writeQuery<any>(`SELECT id, full_name, email,
         COALESCE(company_name, company) as company_name, source, status,
         COALESCE(qualification_score, atlas_score, 0) as qualification_score,
         atlas_score,
         COALESCE(created_at, submitted_at) as created_at
-      FROM inbound.leads ORDER BY COALESCE(created_at, submitted_at) DESC LIMIT 10`),
+      FROM inbound.leads WHERE 1=1 ${tf.clause} ORDER BY COALESCE(created_at, submitted_at) DESC LIMIT 10`, tf.params),
     ]);
 
     return NextResponse.json({

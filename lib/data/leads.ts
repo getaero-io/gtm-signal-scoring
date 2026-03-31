@@ -2,6 +2,8 @@ import { query } from '@/lib/db';
 import { writeQuery } from '@/lib/db-write';
 import { InboundLead, InboundFormPayload, EnrichmentResult, RoutingTraceStep } from '@/types/inbound';
 import { enrichDomainFromExa } from '@/lib/ai/exa';
+import { resolveIdentity } from '@/lib/identity/resolve';
+import { tenantSourceFilter, tenantFilter } from '@/lib/data/tenant-filter';
 
 export function extractDomain(email: string): string | null {
   const match = email.match(/@([^@]+)$/);
@@ -119,7 +121,25 @@ export async function createLead(
     ]
   );
 
-  return rows[0];
+  const lead = rows[0];
+
+  // Resolve identity — link to person + company entities
+  try {
+    const nameParts = (payload.full_name || '').split(/\s+/);
+    await resolveIdentity({
+      leadId: lead.id,
+      email: payload.email,
+      firstName: nameParts[0] || null,
+      lastName: nameParts.slice(1).join(' ') || null,
+      companyDomain: domain,
+      companyName: payload.company || null,
+      source: payload.source || 'form',
+    });
+  } catch (err) {
+    console.warn('[createLead] Identity resolution failed:', (err as Error).message);
+  }
+
+  return lead;
 }
 
 export async function updateLeadRouting(
@@ -147,16 +167,23 @@ export async function updateLeadRouting(
 }
 
 export async function getLeads(limit = 50, offset = 0): Promise<{ leads: InboundLead[]; total: number }> {
+  const tf = tenantSourceFilter('l', 1);
+  const limitIdx = tf.nextParam;
+
   const [rows, countRows] = await Promise.all([
     writeQuery<InboundLead>(
       `SELECT l.*, row_to_json(r.*) as assigned_rep
        FROM inbound.leads l
        LEFT JOIN inbound.reps r ON r.id = l.assigned_rep_id
-       ORDER BY l.submitted_at DESC
-       LIMIT $1 OFFSET $2`,
-      [limit, offset]
+       WHERE 1=1 ${tf.clause}
+       ORDER BY l.created_at DESC, COALESCE(l.qualification_score, 0) DESC
+       LIMIT $${limitIdx} OFFSET $${limitIdx + 1}`,
+      [...tf.params, limit, offset]
     ),
-    writeQuery<{ total: string }>('SELECT COUNT(*) as total FROM inbound.leads'),
+    writeQuery<{ total: string }>(
+      `SELECT COUNT(*) as total FROM inbound.leads WHERE 1=1 ${tenantFilter(1).clause}`,
+      tenantFilter(1).params
+    ),
   ]);
 
   return {

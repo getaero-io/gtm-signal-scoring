@@ -17,6 +17,16 @@ interface Lead {
   icp_passed: boolean | null;
   icp_breakdown: Record<string, { score: number; weight: number; rules_matched: string[] }> | null;
   icp_flags: string[] | null;
+  person_id: string | null;
+  person_name: string | null;
+  person_email: string | null;
+  person_linkedin: string | null;
+  company_resolved_domain: string | null;
+  company_resolved_name: string | null;
+  related_leads_count: number | null;
+  title: string | null;
+  company_domain: string | null;
+  deal_stage: string | null;
 }
 
 function tierLabel(score: number): { label: string; color: string } {
@@ -32,6 +42,7 @@ export function LeadTable() {
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filters, setFilters] = useState({ tier: '', source: '', status: '', sort: 'score_desc' });
+  const [dedup, setDedup] = useState(false);
   const [offset, setOffset] = useState(0);
   const limit = 50;
 
@@ -45,6 +56,7 @@ export function LeadTable() {
       params.set('sort', filters.sort);
       params.set('limit', String(limit));
       params.set('offset', String(offset));
+      if (dedup) params.set('dedup', 'person');
 
       const res = await fetch(`/api/signals/leads?${params}`);
       if (res.ok) {
@@ -55,7 +67,7 @@ export function LeadTable() {
     } finally {
       setLoading(false);
     }
-  }, [filters, offset]);
+  }, [filters, offset, dedup]);
 
   useEffect(() => {
     fetchLeads();
@@ -85,6 +97,11 @@ export function LeadTable() {
             className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-300"
           >
             <option value="">All Sources</option>
+            <option value="attio">Attio</option>
+            <option value="cpg_import">CPG Import</option>
+            <option value="smartlead">Smartlead</option>
+            <option value="lemlist">Lemlist</option>
+            <option value="webflow">Webflow</option>
           </select>
           <select
             value={filters.status}
@@ -106,6 +123,15 @@ export function LeadTable() {
             <option value="newest">Newest</option>
             <option value="oldest">Oldest</option>
           </select>
+          <label className="flex items-center gap-1.5 text-zinc-400 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={dedup}
+              onChange={(e) => { setDedup(e.target.checked); setOffset(0); }}
+              className="rounded bg-zinc-800 border-zinc-600"
+            />
+            Dedup by person
+          </label>
         </div>
       </div>
 
@@ -119,18 +145,19 @@ export function LeadTable() {
               <th className="text-right px-4 py-2">Score</th>
               <th className="text-center px-4 py-2">Tier</th>
               <th className="text-left px-4 py-2">Status</th>
+              <th className="text-center px-4 py-2">Leads</th>
               <th className="text-left px-4 py-2">Date</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-zinc-600">Loading...</td>
+                <td colSpan={8} className="px-4 py-8 text-center text-zinc-600">Loading...</td>
               </tr>
             )}
             {!loading && leads.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-zinc-600">No leads found</td>
+                <td colSpan={8} className="px-4 py-8 text-center text-zinc-600">No leads found</td>
               </tr>
             )}
             {!loading && leads.map((lead) => {
@@ -138,18 +165,31 @@ export function LeadTable() {
               const { label, color } = tierLabel(score);
               const isExpanded = expandedId === lead.id;
 
+              const displayName = lead.person_name || lead.full_name || '\u2014';
+              const displayEmail = lead.person_email || lead.email || '\u2014';
+              const displayCompany = lead.company_resolved_name || lead.company_name || '\u2014';
+              const displayDomain = lead.company_resolved_domain || lead.company_domain;
+              const relatedCount = Number(lead.related_leads_count) || 0;
+
               return (
                 <tr key={lead.id} className="border-b border-zinc-800/50 hover:bg-zinc-800/30 cursor-pointer group" onClick={() => setExpandedId(isExpanded ? null : lead.id)}>
-                  <td className="px-4 py-2" colSpan={isExpanded ? 7 : undefined}>
+                  <td className="px-4 py-2" colSpan={isExpanded ? 8 : undefined}>
                     {isExpanded ? (
                       <div className="space-y-3 py-2">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 flex-wrap">
                           <div>
-                            <p className="text-zinc-200 font-medium">{lead.full_name || '\u2014'}</p>
-                            <p className="text-xs text-zinc-500 font-mono">{lead.email}</p>
+                            <p className="text-zinc-200 font-medium">{displayName}</p>
+                            {lead.title && <p className="text-xs text-zinc-500">{lead.title}</p>}
+                            <p className="text-xs text-zinc-500 font-mono">{displayEmail}</p>
+                            {lead.person_linkedin && (
+                              <a href={lead.person_linkedin} target="_blank" rel="noopener" className="text-xs text-blue-400 hover:underline">LinkedIn</a>
+                            )}
                           </div>
                           <span className="text-xs text-zinc-600">at</span>
-                          <span className="text-zinc-400">{lead.company_name || '\u2014'}</span>
+                          <div>
+                            <span className="text-zinc-400">{displayCompany}</span>
+                            {displayDomain && <span className="text-xs text-zinc-600 ml-1">({displayDomain})</span>}
+                          </div>
                           <span className="font-mono text-xs text-zinc-500">{lead.source}</span>
                           <span className={`font-mono text-xs font-semibold ${color}`}>{label}</span>
                           <span className={`text-xs px-1.5 py-0.5 rounded ${
@@ -157,6 +197,12 @@ export function LeadTable() {
                             lead.status === 'nurture' ? 'bg-amber-500/20 text-amber-400' :
                             'bg-zinc-700 text-zinc-400'
                           }`}>{lead.status}</span>
+                          {relatedCount > 1 && (
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">{relatedCount} leads</span>
+                          )}
+                          {lead.deal_stage && (
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">Deal: {lead.deal_stage}</span>
+                          )}
                         </div>
                         {lead.icp_breakdown && (
                           <ScoreBreakdown
@@ -172,14 +218,18 @@ export function LeadTable() {
                       </div>
                     ) : (
                       <>
-                        <p className="text-zinc-200">{lead.full_name || '\u2014'}</p>
-                        <p className="text-xs text-zinc-500 font-mono">{lead.email}</p>
+                        <p className="text-zinc-200">{displayName}</p>
+                        {lead.title && <p className="text-xs text-zinc-500 truncate max-w-[200px]">{lead.title}</p>}
+                        <p className="text-xs text-zinc-500 font-mono">{displayEmail}</p>
                       </>
                     )}
                   </td>
                   {!isExpanded && (
                     <>
-                      <td className="px-4 py-2 text-zinc-400">{lead.company_name || '\u2014'}</td>
+                      <td className="px-4 py-2">
+                        <p className="text-zinc-400">{displayCompany}</p>
+                        {displayDomain && <p className="text-xs text-zinc-600 font-mono">{displayDomain}</p>}
+                      </td>
                       <td className="px-4 py-2 font-mono text-xs text-zinc-500">{lead.source}</td>
                       <td className="px-4 py-2 text-right font-mono font-semibold">{score}</td>
                       <td className={`px-4 py-2 text-center font-mono text-xs font-semibold ${color}`}>{label}</td>
@@ -190,8 +240,11 @@ export function LeadTable() {
                           'bg-zinc-700 text-zinc-400'
                         }`}>{lead.status}</span>
                       </td>
+                      <td className="px-4 py-2 text-center font-mono text-xs text-zinc-500">
+                        {relatedCount > 1 ? relatedCount : '\u2014'}
+                      </td>
                       <td className="px-4 py-2 text-xs text-zinc-500 font-mono">
-                        {new Date(lead.created_at).toLocaleDateString()}
+                        {lead.created_at ? new Date(lead.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '\u2014'}
                       </td>
                     </>
                   )}

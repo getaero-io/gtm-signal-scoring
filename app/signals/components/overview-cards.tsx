@@ -15,7 +15,7 @@ export function OverviewCards({ totals }: Props) {
 
   const cards = [
     { label: 'Total Leads', value: Number(totals.total).toLocaleString(), sub: null },
-    { label: 'Avg Score', value: totals.avg_score, sub: `Median: ${totals.median_score}` },
+    { label: 'Avg Score', value: totals.avg_score ? Number(totals.avg_score).toFixed(1) : '—', sub: totals.median_score ? `Median: ${Number(totals.median_score).toFixed(1)}` : null },
     {
       label: 'Tier 1 (70+)',
       value: Number(totals.tier1).toLocaleString(),

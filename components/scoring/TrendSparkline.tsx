@@ -9,7 +9,7 @@ interface TrendSparklineProps {
 }
 
 export function TrendSparkline({ data, width = 120, height = 40 }: TrendSparklineProps) {
-  if (data.length === 0) return null;
+  if (data.length <= 1) return null;
 
   const maxScore = Math.max(...data.map(d => d.score), 100);
   const minScore = Math.min(...data.map(d => d.score), 0);

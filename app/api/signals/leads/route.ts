@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { writeQuery } from '@/lib/db-write';
+import { tenantSourceFilter } from '@/lib/data/tenant-filter';
 
 export async function GET(req: NextRequest) {
   try {
@@ -14,6 +15,15 @@ export async function GET(req: NextRequest) {
     const conditions: string[] = [];
     const values: any[] = [];
     let idx = 1;
+
+    // Tenant-aware source filtering
+    const tf = tenantSourceFilter('l', idx);
+    if (tf.clause) {
+      // Strip leading "AND " since we're building conditions array
+      conditions.push(tf.clause.replace(/^AND\s+/, ''));
+      values.push(...tf.params);
+      idx = tf.nextParam;
+    }
 
     if (tier) {
       const tierMap: Record<string, [number, number]> = {
@@ -38,14 +48,21 @@ export async function GET(req: NextRequest) {
     };
     const orderBy = orderMap[sort] || orderMap.score_desc;
 
+    const dedup = params.get('dedup') === 'person';
+
     const [leads, countResult] = await Promise.all([
       writeQuery<any>(
         `SELECT l.*, qr.score as icp_score, qr.passed as icp_passed, qr.breakdown as icp_breakdown,
-         qr.flags as icp_flags, qr.icp_ref
+         qr.flags as icp_flags, qr.icp_ref,
+         p.primary_name as person_name, p.primary_email as person_email, p.primary_linkedin_url as person_linkedin,
+         cr.primary_domain as company_resolved_domain, cr.primary_name as company_resolved_name,
+         (SELECT COUNT(*) FROM inbound.leads l2 WHERE l2.person_id = l.person_id AND l.person_id IS NOT NULL) as related_leads_count
          FROM inbound.leads l
          LEFT JOIN LATERAL (
            SELECT * FROM inbound.qualification_results WHERE lead_id = l.id ORDER BY created_at DESC LIMIT 1
          ) qr ON true
+         LEFT JOIN inbound.persons p ON p.id = l.person_id
+         LEFT JOIN inbound.companies_resolved cr ON cr.id = l.company_id
          ${where}
          ORDER BY ${orderBy}
          LIMIT $${idx} OFFSET $${idx + 1}`,
@@ -57,11 +74,26 @@ export async function GET(req: NextRequest) {
       ),
     ]);
 
+    // If dedup=person, collapse leads by person_id (keep highest-scored lead per person)
+    let result = leads;
+    if (dedup) {
+      const seen = new Map<string, any>();
+      for (const lead of leads) {
+        const key = lead.person_id || lead.id; // ungrouped leads use their own ID
+        const existing = seen.get(key);
+        if (!existing || (lead.icp_score ?? 0) > (existing.icp_score ?? 0)) {
+          seen.set(key, lead);
+        }
+      }
+      result = Array.from(seen.values());
+    }
+
     return NextResponse.json({
-      leads,
+      leads: result,
       total: parseInt(countResult[0]?.total || '0'),
       limit,
       offset,
+      deduplicated: dedup,
     });
   } catch (error) {
     console.error('[signals/leads] Error:', (error as Error).message);

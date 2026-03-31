@@ -1,255 +1,139 @@
 import { query } from '@/lib/db';
-import { Account, Contact } from '@/types/accounts';
-import { calculateAtlasScore, generate30DayTrend, detectSignals } from '@/lib/scoring/engine';
-import { determineSeniority, isP0Contact } from '@/lib/scoring/p0-detection';
+import { Account } from '@/types/accounts';
+import { tenantSourceFilter, tenantFilter } from './tenant-filter';
 
-interface DomainAggregate {
+interface AccountRow {
   domain: string;
-  brand_name: string | null;
-  record_count: string;
-  valid_business_email_count: string;
-  valid_free_email_count: string;
-  mx_found: boolean;
+  brand_name: string;
+  founder_name: string | null;
+  founder_email: string | null;
+  founder_title: string | null;
+  email_status: string | null;
+  retailer_count: string;
+  retailers_list: string | null;
+  sc_tier: string | null;
+  icp_score: string | null;
+  account_score: string | null;
+  account_tier: string | null;
+  contact_count: string;
+  created_at: string;
   updated_at: string;
-  created_at: string;
 }
-
-interface PersonRecord {
-  id: string;
-  provider: string;
-  identity_payload: Record<string, any>;
-  raw_payload: Record<string, any>;
-  created_at: string;
-}
-
-const DOMAIN_AGG_CTE = `
-  WITH domain_records AS (
-    SELECT
-      jsonb_array_elements_text(identity_payload->'domain') AS domain,
-      id,
-      provider,
-      identity_payload,
-      raw_payload,
-      created_at
-    FROM dl_resolved.resolved_people
-    WHERE is_match = true AND identity_payload ? 'domain'
-  ),
-  domain_agg AS (
-    SELECT
-      domain,
-      MAX(raw_payload->'__deepline_identity'->'context_cols_from_enrich'->>'brand_name') AS brand_name,
-      COUNT(*) AS record_count,
-      COUNT(*) FILTER (
-        WHERE provider = 'zerobounce'
-          AND raw_payload->'result'->>'status' = 'valid'
-          AND (raw_payload->'result'->>'free_email') = 'false'
-      ) AS valid_business_email_count,
-      COUNT(*) FILTER (
-        WHERE provider = 'zerobounce'
-          AND raw_payload->'result'->>'status' = 'valid'
-          AND (raw_payload->'result'->>'free_email') = 'true'
-      ) AS valid_free_email_count,
-      BOOL_OR(
-        provider = 'zerobounce' AND (raw_payload->'result'->>'mx_found') = 'true'
-      ) AS mx_found,
-      MAX(created_at) AS updated_at,
-      MIN(created_at) AS created_at
-    FROM domain_records
-    GROUP BY domain
-  )
-`;
 
 export async function getAccounts(params: {
   search?: string;
   limit?: number;
   offset?: number;
-}): Promise<{ accounts: Account[]; total: number }> {
+}): Promise<{ accounts: Account[]; total: number; stats: { totalAccounts: number; withEmail: number; qualified: number } }> {
   const { search = '', limit = 50, offset = 0 } = params;
   const searchParam = `%${search}%`;
 
-  const domains = await query<DomainAggregate>(
-    `${DOMAIN_AGG_CTE}
-    SELECT * FROM domain_agg
-    WHERE LOWER(domain) LIKE LOWER($1) OR LOWER(COALESCE(brand_name, '')) LIKE LOWER($1)
-    ORDER BY valid_business_email_count DESC, valid_free_email_count DESC, updated_at DESC
-    LIMIT $2 OFFSET $3`,
-    [searchParam, limit, offset]
+  // Tenant-aware source filtering (Spring Cash only sees CPG leads)
+  const tf = tenantSourceFilter('l', 1);
+  const searchIdx = tf.nextParam;
+
+  const rows = await query<AccountRow>(
+    `WITH brand_agg AS (
+      SELECT
+        l.company_domain AS domain,
+        MAX(l.company_name) AS brand_name,
+        -- Pick the best founder: prefer leads with email, then highest qualification_score
+        (ARRAY_AGG(l.full_name ORDER BY
+          CASE WHEN l.email IS NOT NULL THEN 0 ELSE 1 END,
+          COALESCE(l.qualification_score, 0) DESC
+          NULLS LAST
+        ))[1] AS founder_name,
+        (ARRAY_AGG(l.email ORDER BY
+          CASE WHEN l.email IS NOT NULL THEN 0 ELSE 1 END,
+          COALESCE(l.qualification_score, 0) DESC
+          NULLS LAST
+        ))[1] AS founder_email,
+        (ARRAY_AGG(l.title ORDER BY
+          CASE WHEN l.email IS NOT NULL THEN 0 ELSE 1 END,
+          COALESCE(l.qualification_score, 0) DESC
+          NULLS LAST
+        ))[1] AS founder_title,
+        (ARRAY_AGG(l.metadata->>'email_status' ORDER BY
+          CASE WHEN l.email IS NOT NULL THEN 0 ELSE 1 END,
+          COALESCE(l.qualification_score, 0) DESC
+          NULLS LAST
+        ))[1] AS email_status,
+        MAX(COALESCE((l.metadata->>'retailer_count')::int, 0)) AS retailer_count,
+        MAX(l.metadata->>'retailers_list') AS retailers_list,
+        MAX(l.metadata->>'sc_tier') AS sc_tier,
+        MAX(l.qualification_score) AS icp_score,
+        COUNT(*) AS contact_count,
+        MIN(l.created_at) AS created_at,
+        MAX(l.updated_at) AS updated_at
+      FROM inbound.leads l
+      WHERE l.company_domain IS NOT NULL AND l.company_domain != ''
+        ${tf.clause}
+      GROUP BY l.company_domain
+    )
+    SELECT
+      b.*,
+      a.account_score,
+      a.account_tier
+    FROM brand_agg b
+    LEFT JOIN inbound.account_scores a ON a.domain = b.domain
+    WHERE LOWER(b.brand_name) LIKE LOWER($${searchIdx}) OR LOWER(b.domain) LIKE LOWER($${searchIdx})
+    ORDER BY a.account_score DESC NULLS LAST, b.icp_score DESC NULLS LAST
+    LIMIT $${searchIdx + 1} OFFSET $${searchIdx + 2}`,
+    [...tf.params, searchParam, limit, offset]
   );
 
+  const ctf = tenantFilter(1);
+  const countSearchIdx = ctf.nextParam;
   const countResult = await query<{ total: string }>(
-    `${DOMAIN_AGG_CTE}
-    SELECT COUNT(*) AS total FROM domain_agg
-    WHERE LOWER(domain) LIKE LOWER($1) OR LOWER(COALESCE(brand_name, '')) LIKE LOWER($1)`,
-    [searchParam]
+    `SELECT COUNT(DISTINCT company_domain) AS total
+     FROM inbound.leads
+     WHERE company_domain IS NOT NULL AND company_domain != ''
+       ${ctf.clause}
+       AND (LOWER(company_name) LIKE LOWER($${countSearchIdx}) OR LOWER(company_domain) LIKE LOWER($${countSearchIdx}))`,
+    [...ctf.params, searchParam]
   );
   const total = parseInt(countResult[0]?.total || '0');
 
-  const accounts = domains.map(d => transformDomainToAccount(d, []));
-  return { accounts, total };
-}
-
-export async function getAccountById(id: string): Promise<Account | null> {
-  const domain = decodeURIComponent(id);
-
-  const domains = await query<DomainAggregate>(
-    `${DOMAIN_AGG_CTE}
-    SELECT * FROM domain_agg WHERE domain = $1`,
-    [domain]
-  );
-
-  if (domains.length === 0) return null;
-
-  const contacts = await getContactsForDomain(domain);
-  return transformDomainToAccount(domains[0], contacts);
-}
-
-export async function getAccountSignals(account: Account) {
-  // Fetch raw email counts directly from DB for accurate signal descriptions
-  const rows = await query<{ valid_business: string; valid_free: string; mx: boolean }>(
+  // Stats: always global for this tenant (no search filter)
+  const stf = tenantFilter(1);
+  const statsResult = await query<{ total_accounts: string; with_email: string; qualified: string }>(
     `SELECT
-       COUNT(*) FILTER (
-         WHERE provider = 'zerobounce'
-           AND raw_payload->'result'->>'status' = 'valid'
-           AND (raw_payload->'result'->>'free_email') = 'false'
-       ) AS valid_business,
-       COUNT(*) FILTER (
-         WHERE provider = 'zerobounce'
-           AND raw_payload->'result'->>'status' = 'valid'
-           AND (raw_payload->'result'->>'free_email') = 'true'
-       ) AS valid_free,
-       BOOL_OR(
-         provider = 'zerobounce' AND (raw_payload->'result'->>'mx_found') = 'true'
-       ) AS mx
-     FROM dl_resolved.resolved_people
-     WHERE is_match = true
-       AND identity_payload->'domain' @> jsonb_build_array($1::text)`,
-    [account.id]
+       COUNT(DISTINCT company_domain) AS total_accounts,
+       COUNT(DISTINCT CASE WHEN email IS NOT NULL THEN company_domain END) AS with_email,
+       COUNT(DISTINCT CASE WHEN status = 'qualified' THEN company_domain END) AS qualified
+     FROM inbound.leads
+     WHERE company_domain IS NOT NULL AND company_domain != ''
+       ${stf.clause}`,
+    [...stf.params]
   );
+  const s = statsResult[0];
 
-  const row = rows[0];
-  return detectSignals({
-    contacts: account.key_contacts,
-    validBusinessEmails: parseInt(row?.valid_business || '0'),
-    validFreeEmails: parseInt(row?.valid_free || '0'),
-    mxFound: row?.mx ?? false,
-    accountId: account.id,
-    enrichedAt: account.updated_at,
-  });
-}
-
-function transformDomainToAccount(agg: DomainAggregate, contacts: Contact[]): Account {
-  const name = agg.brand_name || agg.domain;
-  const validBusinessEmails = parseInt(agg.valid_business_email_count || '0');
-  const validFreeEmails = parseInt(agg.valid_free_email_count || '0');
-  const mxFound = agg.mx_found ?? false;
-
-  const scoreBreakdown = calculateAtlasScore({
-    contacts,
-    validBusinessEmails,
-    validFreeEmails,
-    mxFound,
-  });
-
-  const trend30d = generate30DayTrend({
-    enrichedAt: agg.created_at,
-    currentScore: scoreBreakdown.total,
-  });
-
-  const p0Count = contacts.filter(c => c.is_p0).length;
+  const accounts: Account[] = rows.map(r => ({
+    id: r.domain,
+    name: r.brand_name || r.domain,
+    domain: r.domain,
+    founder_name: r.founder_name,
+    founder_email: r.founder_email,
+    founder_title: r.founder_title,
+    email_status: r.email_status,
+    retailer_count: parseInt(r.retailer_count || '0'),
+    retailers_list: r.retailers_list,
+    sc_tier: r.sc_tier,
+    icp_score: r.icp_score ? parseFloat(r.icp_score) : null,
+    account_score: r.account_score ? parseFloat(r.account_score) : null,
+    account_tier: r.account_tier,
+    contact_count: parseInt(r.contact_count || '0'),
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+  }));
 
   return {
-    id: agg.domain,
-    name,
-    domain: agg.domain,
-    industry: undefined,
-    logo_url: undefined,
-    atlas_score: scoreBreakdown.total,
-    score_breakdown: scoreBreakdown,
-    trend_30d: trend30d,
-    p0_penetration: {
-      current: p0Count,
-      total: contacts.length,
+    accounts,
+    total,
+    stats: {
+      totalAccounts: parseInt(s?.total_accounts || '0'),
+      withEmail: parseInt(s?.with_email || '0'),
+      qualified: parseInt(s?.qualified || '0'),
     },
-    tech_stack: [],
-    key_contacts:
-      p0Count > 0
-        ? contacts.filter(c => c.is_p0)
-        : contacts.slice(0, 3),
-    created_at: agg.created_at,
-    updated_at: agg.updated_at,
-  };
-}
-
-async function getContactsForDomain(domain: string): Promise<Contact[]> {
-  const records = await query<PersonRecord>(
-    `SELECT id, provider, identity_payload, raw_payload, created_at
-     FROM dl_resolved.resolved_people
-     WHERE is_match = true
-       AND identity_payload->'domain' @> jsonb_build_array($1::text)`,
-    [domain]
-  );
-
-  const contacts: Contact[] = [];
-  const seenEmails = new Set<string>();
-
-  for (const record of records) {
-    const contact = extractContactFromRecord(record, domain);
-    if (!contact) continue;
-
-    if (contact.email) {
-      if (seenEmails.has(contact.email)) continue;
-      seenEmails.add(contact.email);
-    }
-
-    contacts.push(contact);
-  }
-
-  return contacts;
-}
-
-function extractContactFromRecord(record: PersonRecord, domain: string): Contact | null {
-  const identityPayload = record.identity_payload || {};
-  const rawPayload = record.raw_payload || {};
-  const result = rawPayload.result || {};
-  const context = rawPayload.__deepline_identity?.context_cols_from_enrich || {};
-
-  const email = identityPayload.email?.[0];
-
-  const firstName =
-    result.firstname ||
-    result.first_name ||
-    result.firstName ||
-    context.first_name ||
-    '';
-  const lastName =
-    result.lastname ||
-    result.last_name ||
-    result.lastName ||
-    context.last_name ||
-    '';
-  const fullName =
-    `${firstName} ${lastName}`.trim() ||
-    identityPayload.person_name?.[0] ||
-    (email ? email.split('@')[0] : '');
-
-  if (!email && !fullName) return null;
-
-  const title =
-    context.grok_founder_title ||
-    result.title ||
-    identityPayload.title?.[0];
-
-  const seniority = determineSeniority(title);
-  const is_p0 = isP0Contact(title, undefined);
-
-  return {
-    id: record.id,
-    account_id: domain,
-    full_name: fullName || 'Unknown',
-    email,
-    title,
-    seniority,
-    is_p0,
-    linkedin_url: identityPayload.linkedin?.[0],
   };
 }

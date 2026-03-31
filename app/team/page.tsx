@@ -7,6 +7,11 @@ import { Users } from 'lucide-react';
 
 const ROLES = ['Senior', 'AE', 'SDR'] as const;
 
+const FOUNDERS = [
+  { name: 'Tej Singh', role: 'Co-Founder & CEO', email: 'tej@springcash.co' },
+  { name: 'Jai Toor', role: 'Co-Founder & CTO', email: 'jai@springcash.co' },
+];
+
 export default function TeamPage() {
   const [reps, setReps] = useState<Rep[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,7 +64,28 @@ export default function TeamPage() {
         <Users size={22} className="text-gray-700" />
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Team</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Configure routing reps and capacity</p>
+          <p className="text-sm text-gray-500 mt-0.5">Spring Cash founding team &amp; routing reps</p>
+        </div>
+      </div>
+
+      {/* Founding team */}
+      <div className="mb-6">
+        <h2 className="text-sm font-semibold text-gray-700 mb-3">Founding Team</h2>
+        <div className="grid grid-cols-2 gap-4">
+          {FOUNDERS.map(f => (
+            <div key={f.email} className="bg-white border border-gray-200 rounded-xl p-5">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-full bg-gray-900 text-white flex items-center justify-center text-sm font-bold">
+                  {f.name.split(' ').map(n => n[0]).join('')}
+                </div>
+                <div>
+                  <div className="font-semibold text-gray-900">{f.name}</div>
+                  <div className="text-xs text-gray-500">{f.role}</div>
+                </div>
+              </div>
+              <a href={`mailto:${f.email}`} className="text-sm text-blue-600 hover:underline">{f.email}</a>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -70,11 +96,11 @@ export default function TeamPage() {
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <label htmlFor="rep-name" className="text-xs font-medium text-gray-600">Name</label>
-              <input id="rep-name" type="text" placeholder="Alex Rivera" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input id="rep-name" type="text" placeholder="Jane Smith" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div className="flex flex-col gap-1">
               <label htmlFor="rep-email" className="text-xs font-medium text-gray-600">Email</label>
-              <input id="rep-email" type="email" placeholder="alex@company.com" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input id="rep-email" type="email" placeholder="jane@springcash.co" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div className="flex flex-col gap-1">
               <label htmlFor="rep-role" className="text-xs font-medium text-gray-600">Role</label>

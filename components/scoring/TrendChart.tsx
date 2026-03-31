@@ -8,6 +8,15 @@ interface TrendChartProps {
 
 export function TrendChart({ data }: TrendChartProps) {
   if (data.length === 0) return null;
+  if (data.length === 1) {
+    // Single data point — show as a centered dot
+    return (
+      <div className="flex items-center justify-center h-[120px] text-xs text-zinc-500">
+        <span className="font-mono">{data[0].score}</span>
+        <span className="ml-1">on {new Date(data[0].date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+      </div>
+    );
+  }
 
   const width = 600;
   const height = 120;

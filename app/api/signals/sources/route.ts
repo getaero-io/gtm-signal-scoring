@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { writeQuery } from '@/lib/db-write';
+import { tenantFilter } from '@/lib/data/tenant-filter';
 
 export async function GET() {
   try {
+    const tf = tenantFilter(1);
     const sources = await writeQuery<{
       source: string; count: string; avg_score: string;
       tier1: string; tier2: string; tier3: string; tier4: string;
@@ -15,8 +17,9 @@ export async function GET() {
       COUNT(*) FILTER (WHERE COALESCE(qualification_score, atlas_score, 0) BETWEEN 30 AND 49) as tier3,
       COUNT(*) FILTER (WHERE COALESCE(qualification_score, atlas_score, 0) < 30) as tier4
     FROM inbound.leads
+    WHERE 1=1 ${tf.clause}
     GROUP BY 1
-    ORDER BY avg_score DESC`);
+    ORDER BY avg_score DESC`, tf.params);
 
     return NextResponse.json({ sources });
   } catch (error) {
